@@ -7,15 +7,15 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     //Movement Variables
-    private float walkSpeed = 16.0f;
-    private float runSpeed = 24.0f;
-    private float jumpSpeed = 18.0f;
-    private float airDriftSpeed = 0.5f; //for left-right movement in air
-    private float gravity = 30.0f;
+    private float walkSpeed = 16.0f; //Default 16
+    private float runSpeed = 24.0f; //Default 24
+    private float jumpSpeed = 18.0f; //Default 18
+    private float airDriftSpeed = 0.5f; //for left-right movement in air, default 0.5
+    private float gravity = 30.0f; //Default 30
 
     //Slide Variables
-    private float slideMultiplier = 1.2f;
-    private float timeForcedToSlide = 1.5f;
+    private float slideMultiplier = 1.4f; //Default 1.25-1.4
+    private float timeForcedToSlide = 0.25f; //Default 0.25
     private float timeSlideStart = 0;
 
     //Movement States
@@ -23,6 +23,7 @@ public class PlayerController : MonoBehaviour
     private bool sliding = false;
     private bool isRunning = false;
     private bool forcedToSlide = false;
+    private bool slideJumpBuffered = false;
 
     private bool airJumpUsed = false;
     private bool runningWhenJumped = false;
@@ -38,15 +39,20 @@ public class PlayerController : MonoBehaviour
     public GameObject playerObject;
     CameraController cameraController;
     CharacterController characterController;
+    GroundChecker groundChecker;
+
     Vector3 moveDirection = Vector3.zero;
 
     [HideInInspector]
     public bool canMove = true;
 
+    //To do: move slide functions into a Slide Controller
+
     void Start()
     {
         characterController = GetComponent<CharacterController>();
         cameraController = GetComponent<CameraController>();
+        groundChecker = GetComponent<GroundChecker>();
 
         // Lock cursor
         Cursor.lockState = CursorLockMode.Locked;
@@ -59,9 +65,11 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
 
-
         lastPosition = playerObject.transform.position;
 
+        if (forcedToSlide && Input.GetButton("Jump")) {
+            slideJumpBuffered = true;
+        }
 
         //Debug.Log(characterController.isGrounded ? "GROUNDED" : "NOT GROUNDED");
 
@@ -69,13 +77,14 @@ public class PlayerController : MonoBehaviour
         {
             isRunning = true;
         }
-
-        else if (!sliding && characterController.isGrounded)
+        
+        //set running to false unless last frame char was in air (last in air exception for cases where you want to slide on landing)
+        else if (!sliding && characterController.isGrounded && !lastInAir)
         {
             isRunning = false;
         }
 
-        if (Input.GetButton("Crouch") || forcedToSlide)
+        if (Input.GetButton("Crouch") || forcedToSlide || slideJumpBuffered)
         {
             //Debug.Log("Crouching");
             crouching = true;
@@ -84,7 +93,6 @@ public class PlayerController : MonoBehaviour
         else {
             crouching = false;
             sliding = false;
-            Debug.Log("Not Sliding");
         }
 
         /*
@@ -120,13 +128,14 @@ public class PlayerController : MonoBehaviour
             if (sliding)
             {
                 Debug.Log("Sliding");
-                //slideDecay();
+                slideDecay();
 
-                if (sliding && Input.GetButtonDown("Jump") && !forcedToSlide)
+                //if jump is buffered or key is pressed after slide lock
+                if ( (Input.GetButtonDown("Jump") || slideJumpBuffered) && !forcedToSlide)
                 {
                     Debug.Log("Jumping from slide");
-                    groundJump();
-                    sliding = false;
+                    slideJump();
+                    slideJumpBuffered = false;
                 }
 
             }
@@ -184,6 +193,8 @@ public class PlayerController : MonoBehaviour
     private void startSlide() {
 
         moveDirection = new Vector3(Input.GetAxisRaw("Horizontal"), -0.01f, Input.GetAxisRaw("Vertical"));
+        moveDirection = transform.TransformDirection(moveDirection);
+
         if (moveDirection.magnitude > 1)
         {
             moveDirection.Normalize();
@@ -192,27 +203,76 @@ public class PlayerController : MonoBehaviour
         moveDirection.z *= (runSpeed * slideMultiplier);
 
         slideMomentum = moveDirection; //BEFORE TRANSFORM DIRECTION
-
-        moveDirection = transform.TransformDirection(moveDirection);
     }
 
+    //https://answers.unity.com/questions/1358491/character-controller-slide-down-slope.html
+    //http://thehiddensignal.com/unity-angle-of-sloped-ground-under-player/
     private void slideDecay() {
 
         float decayAmount = 0.1f;
 
-        if (moveDirection.x > 0 && moveDirection.x < decayAmount)
-            moveDirection.x = 0;
+        if (Time.time - timeSlideStart < timeForcedToSlide) { //don't decay until not forced to slide
+            decayAmount = 0;
+        }
 
-        else
-            moveDirection.x -= decayAmount;
+        //Downhill angles
+        //don't decay slide if ground angle between -20 & -35
+        if (groundChecker.groundSlopeAngle <= -20 && groundChecker.groundSlopeAngle >= -35)
+            return;
 
-        if (moveDirection.z > 0 && moveDirection.z < decayAmount)
-            moveDirection.z = 0;
+        //add speed depending on angle <-35
+        if (groundChecker.groundSlopeAngle < -35) {
+            //TO DO
+            return;
+        }
 
-        else
-            moveDirection.z -= decayAmount;
+        //Uphill angles
+        if (groundChecker.groundSlopeAngle >= 20 && groundChecker.groundSlopeAngle <= 35)
+        {
+            forcedToSlide = false;
+            decayAmount *= 5;
+        }
 
-        //moveDirection = transform.TransformDirection(moveDirection);
+        //Vector3 slideDecayVector = new Vector3(decayAmount, 0, decayAmount);
+
+        if (moveDirection.x > 0)
+        {
+            if (moveDirection.x <= decayAmount)
+                moveDirection.x = 0;
+
+            else
+                moveDirection.x -= decayAmount;
+        }
+
+        else if (moveDirection.x < 0) {
+            if (moveDirection.x >= -decayAmount)
+                moveDirection.x = 0;
+
+            else
+                moveDirection.x += decayAmount;
+        }
+
+        
+        if (moveDirection.z > 0)
+        {
+            if (moveDirection.z <= decayAmount)
+                moveDirection.z = 0;
+
+            else
+                moveDirection.z -= decayAmount;
+        }
+
+        else if (moveDirection.z < 0)
+        {
+            if (moveDirection.z >= -decayAmount)
+                moveDirection.z = 0;
+
+            else
+                moveDirection.z += decayAmount;
+        }
+
+        if (moveDirection.x == 0 && moveDirection.z == 0)
+            sliding = false;
 
     }
 
@@ -220,12 +280,35 @@ public class PlayerController : MonoBehaviour
         moveDirection.y = jumpSpeed;
         positionOfLastJump = playerObject.transform.position;
         jumpToAir = true;
+        //sliding = false;
+    }
+
+    private void slideJump() {
+
+        jumpToAir = true;
+        moveDirection.y = jumpSpeed;
+        positionOfLastJump = playerObject.transform.position;
+        moveDirection = new Vector3(Input.GetAxisRaw("Horizontal"), 0, Input.GetAxisRaw("Vertical"));
+        moveDirection = transform.TransformDirection(moveDirection); //makes jump go towards where character is facing
+
+        if (moveDirection.magnitude > 1)
+        {
+            moveDirection.Normalize();
+        }
+
+        moveDirection.x *= (runSpeed * slideMultiplier);
+        moveDirection.z *= (runSpeed * slideMultiplier);
+        moveDirection.y = jumpSpeed;
+
+        runningWhenJumped = true;
+
     }
 
     private void airJump() {
 
         airJumpUsed = true;
         jumpToAir = true;
+        sliding = false;
         positionOfLastJump = playerObject.transform.position;
         moveDirection = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
         moveDirection = transform.TransformDirection(moveDirection);
