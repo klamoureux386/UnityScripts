@@ -15,36 +15,43 @@ public class PlayerController : MonoBehaviour
 
     //Slide Variables
     private float slideMultiplier = 1.4f; //Default 1.25-1.4
-    private float timeForcedToSlide = 0.25f; //Default 0.25
     private float timeSlideStart = 0;
+    //Slide Animation Variables
+    private float timeForcedToSlide = 0.25f; //Should be same length as slide animation duration
+    private float timeToGetUpFromSlide = 0.10f; //Should be same length as slide get-up animation
 
-    //Movement States
+    //Grounded Movement States
     private bool crouching = false;
-    private bool sliding = false;
+    public bool sliding = false;
     private bool isRunning = false;
     private bool forcedToSlide = false;
     private bool slideJumpBuffered = false;
 
+    //Aerial Movement States
     private bool airJumpUsed = false;
     private bool runningWhenJumped = false;
     private bool lastInAir = false;
     private bool jumpToAir = false; //bool to determine if we jumped to end up in air or walked off of a ledge
 
-    //Movement Vectors
+    //Last Movement Variables
     private Vector3 lastPosition;
     private Vector3 positionOfLastJump;
     private Vector3 lastMomentum;
-    private Vector3 slideMomentum;
+    private bool lastSliding = false;
 
+    //private Vector3 slideMomentum;
+
+    //Components
     public GameObject playerObject;
+    public Animator anim;
     CameraController cameraController;
     CharacterController characterController;
     GroundChecker groundChecker;
 
     Vector3 moveDirection = Vector3.zero;
 
-    [HideInInspector]
-    public bool canMove = true;
+    /*[HideInInspector]
+    public bool canMove = true;*/
 
     //To do: move slide functions into a Slide Controller
 
@@ -58,7 +65,7 @@ public class PlayerController : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        lastPosition = playerObject.transform.position;
+        //lastPosition = playerObject.transform.position;
         positionOfLastJump = playerObject.transform.position;
     }
 
@@ -66,34 +73,11 @@ public class PlayerController : MonoBehaviour
     {
 
         lastPosition = playerObject.transform.position;
+        lastSliding = sliding;
 
-        if (forcedToSlide && Input.GetButton("Jump")) {
-            slideJumpBuffered = true;
-        }
+        setGroundedMovementStates();
 
         //Debug.Log(characterController.isGrounded ? "GROUNDED" : "NOT GROUNDED");
-
-        if (!crouching && Input.GetButton("Shift"))
-        {
-            isRunning = true;
-        }
-        
-        //set running to false unless last frame char was in air (last in air exception for cases where you want to slide on landing)
-        else if (!sliding && characterController.isGrounded && !lastInAir)
-        {
-            isRunning = false;
-        }
-
-        if (Input.GetButton("Crouch") || forcedToSlide || slideJumpBuffered)
-        {
-            //Debug.Log("Crouching");
-            crouching = true;
-        }
-
-        else {
-            crouching = false;
-            sliding = false;
-        }
 
         /*
         if (isRunning)
@@ -102,6 +86,21 @@ public class PlayerController : MonoBehaviour
         else
             cameraController.setWalkVignette();
         */
+
+
+        //If we were sliding last frame but no longer are, raise camera
+
+        //TO DO: will not call if the player does the following:
+        //Slides and holds slide
+        //Jumps while still holding slide
+        //Air Jumps while still holding slide
+        //Releases slide button while in air jump before hitting ground
+        //issue: camera gets stuck at sliding level and will not raise back up
+
+        //solution?: check if lastSliding == true in airJump, if so raise camera from slide
+        if (lastSliding && !sliding && !forcedToSlide) {
+            StartCoroutine(cameraController.raiseCameraFromSlide(timeToGetUpFromSlide, Time.time));
+        }
 
         if (characterController.isGrounded) {
 
@@ -118,22 +117,23 @@ public class PlayerController : MonoBehaviour
             //can only slide if moving forward and currently running.
             if (isRunning && Input.GetButton("Crouch") && Input.GetAxis("Vertical") > 0 && !sliding)
             {
-                Debug.Log("Begin Sliding");
+                //Debug.Log("Begin Sliding");
                 sliding = true;
                 timeSlideStart = Time.time;
                 StartCoroutine(forceSlideForTime(timeForcedToSlide));
+                StartCoroutine(cameraController.dipCameraForSlide(timeForcedToSlide, Time.time));
                 startSlide();
             }
 
             if (sliding)
             {
-                Debug.Log("Sliding");
+                //Debug.Log("Sliding");
                 slideDecay();
 
                 //if jump is buffered or key is pressed after slide lock
                 if ( (Input.GetButtonDown("Jump") || slideJumpBuffered) && !forcedToSlide)
                 {
-                    Debug.Log("Jumping from slide");
+                    //Debug.Log("Jumping from slide");
                     slideJump();
                     slideJumpBuffered = false;
                 }
@@ -188,6 +188,7 @@ public class PlayerController : MonoBehaviour
 
         lastMomentum = moveDirection;
         characterController.Move(moveDirection * Time.deltaTime);
+        updateAnimator();
     }
 
     private void startSlide() {
@@ -202,9 +203,10 @@ public class PlayerController : MonoBehaviour
         moveDirection.x *= (runSpeed * slideMultiplier);
         moveDirection.z *= (runSpeed * slideMultiplier);
 
-        slideMomentum = moveDirection; //BEFORE TRANSFORM DIRECTION
+        //slideMomentum = moveDirection; //BEFORE TRANSFORM DIRECTION
     }
 
+    //TO DO: [fix] if move direction is less than the decay amount on start, it snaps the player to 0 on that axis, change how decay works
     //https://answers.unity.com/questions/1358491/character-controller-slide-down-slope.html
     //http://thehiddensignal.com/unity-angle-of-sloped-ground-under-player/
     private void slideDecay() {
@@ -338,5 +340,44 @@ public class PlayerController : MonoBehaviour
         Debug.Log("Not forced to slide");
 
         yield return null;
+    }
+
+    private void updateAnimator() {
+
+        anim.SetBool("isRunning", isRunning);
+        anim.SetBool("sliding", sliding);
+        anim.SetBool("forcedToSlide", forcedToSlide);
+
+    }
+
+    private void setGroundedMovementStates() {
+
+        if (forcedToSlide && Input.GetButton("Jump"))
+        {
+            slideJumpBuffered = true;
+        }
+
+        if (!crouching && Input.GetButton("Shift"))
+        {
+            isRunning = true;
+        }
+
+        //set running to false unless last frame char was in air (last in air exception for cases where you want to slide on landing)
+        else if (!sliding && characterController.isGrounded && !lastInAir)
+        {
+            isRunning = false;
+        }
+
+        if (Input.GetButton("Crouch") || forcedToSlide)
+        {
+            //Debug.Log("Crouching");
+            crouching = true;
+        }
+
+        else
+        {
+            crouching = false;
+            sliding = false;
+        }
     }
 }

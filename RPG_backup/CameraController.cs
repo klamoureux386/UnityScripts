@@ -31,17 +31,25 @@ public class CameraController : MonoBehaviour
     private Color vignWalkColor = Color.black;
     private Color vignSprintColor = Color.red;
 
-    private Vector3 cameraRestingLocation; //SET AS LOCAL POSITION
     private bool cameraBobDown = false;
     private bool cameraBobUp = false;
     private Vector3 cameraBobDownTarget = new Vector3(0, 0.0025f, 0); //magic number to use as a ratio for lowering a maximum of 0.050 units when multiplied by Y velocity
 
     private float rotationX = 0;
 
+    private Vector3 cameraRestingLocation; //SET AS LOCAL POSITION, Default [0, 0.7, 0]
+    private Vector3 cameraSlidingLocation = new Vector3(0, 0.15f, 0.05f); //Default [0, 0.15, 0]
+    private Vector3 cameraCrouchingLocation; //Default [0, 0.3, 0]
+
     void Start()
     {
         cameraRestingLocation = playerCamera.transform.localPosition;
-        //Debug.Log("Camera resting location: " + cameraRestingLocation);
+        /*cameraSlidingLocation = cameraRestingLocation - new Vector3(0, 0.55f, 0); //Sliding height 0.55 lower than resting height
+        cameraCrouchingLocation = cameraRestingLocation - new Vector3(0, 0.4f, 0); //Crouching height 0.4 lower than resting height*/
+
+        Debug.Log("Camera resting location: " + cameraRestingLocation);
+        Debug.Log("Camera sliding location: " + cameraSlidingLocation);
+        Debug.Log("Camera crouching location: " + cameraCrouchingLocation);
 
         //Get Vignette
         Vignette tmp;
@@ -53,6 +61,7 @@ public class CameraController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+
         if (cameraBobDown && !cameraBobUp) {
             bobCameraDown();
         }
@@ -241,6 +250,74 @@ public class CameraController : MonoBehaviour
         }
 
         return false;
+    }
+
+    public IEnumerator dipCameraForSlide(float timeForcedToSlide, float startTime) {
+
+        Debug.Log("Dropping camera for slide");
+
+        float percentageComplete = 0;
+
+        Vector3 startLocation = cameraRestingLocation;
+        Vector3 target = cameraSlidingLocation;
+
+        while (percentageComplete < 1.0f) {
+
+            percentageComplete = lerpCameraLocal(startLocation, target, timeForcedToSlide, startTime);
+            yield return null;
+
+        }
+
+        /*
+        float timeSinceStarted = Time.time - startTime;
+        float percentageComplete = timeSinceStarted / timeForcedToSlide;
+
+        playerCamera.transform.localPosition = Vector3.Lerp(cameraRestingLocation, cameraSlidingLocation, percentageComplete);
+
+        if (percentageComplete >= 1.0f)
+        {
+
+            playerCamera.transform.localPosition = cameraSlidingLocation;
+
+            yield return null;
+        }*/
+
+    }
+
+    public IEnumerator raiseCameraFromSlide(float timeToGetUpFromSlide, float startTime) {
+
+        Debug.Log("Raising camera from slide");
+
+        float percentageComplete = 0;
+
+        Vector3 startLocation = cameraSlidingLocation;
+        Vector3 target = cameraRestingLocation;
+
+        while (percentageComplete < 1.0f) {
+
+            percentageComplete = lerpCameraLocal(startLocation, target, timeToGetUpFromSlide, startTime);
+            yield return null;
+
+        }
+
+    }
+
+    //Returns percentage completion
+    private float lerpCameraLocal(Vector3 startLocation, Vector3 target, float duration, float startTime) {
+
+        float timeSinceStarted = Time.time - startTime;
+        float percentageComplete = timeSinceStarted / duration;
+
+        playerCamera.transform.localPosition = Vector3.Lerp(startLocation, target, percentageComplete);
+
+        Debug.Log("Lerping. Percentage complete: " + percentageComplete);
+
+        if (percentageComplete >= 1.0f) {
+            playerCamera.transform.localPosition = target;
+        }
+
+        return percentageComplete;
+
     }
 
 }
