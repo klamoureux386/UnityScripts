@@ -97,11 +97,6 @@ public class PlayerController : MonoBehaviour
         //Releases slide button while in air jump before hitting ground
         //issue: camera gets stuck at sliding level and will not raise back up
 
-        //solution?: check if lastSliding == true in airJump, if so raise camera from slide
-        if (lastSliding && !sliding && !forcedToSlide) {
-            StartCoroutine(cameraController.raiseCameraFromSlide(timeToGetUpFromSlide, Time.time));
-        }
-
         if (characterController.isGrounded) {
 
             //if last frame was in air, and we just hit ground, bob camera based on fall speed
@@ -188,6 +183,13 @@ public class PlayerController : MonoBehaviour
 
         lastMomentum = moveDirection;
         characterController.Move(moveDirection * Time.deltaTime);
+
+        //Adjust Camera for current action
+        //solution?: check if lastSliding == true in airJump, if so raise camera from slide
+        if (lastSliding && !sliding && !forcedToSlide) {
+            StartCoroutine(cameraController.raiseCameraFromSlide(timeToGetUpFromSlide, Time.time));
+        }
+
         updateAnimator();
     }
 
@@ -212,6 +214,8 @@ public class PlayerController : MonoBehaviour
     private void slideDecay() {
 
         float decayAmount = 0.1f;
+        bool xDecayed = false;
+        bool zDecayed = false;
 
         if (Time.time - timeSlideStart < timeForcedToSlide) { //don't decay until not forced to slide
             decayAmount = 0;
@@ -237,10 +241,11 @@ public class PlayerController : MonoBehaviour
 
         //Vector3 slideDecayVector = new Vector3(decayAmount, 0, decayAmount);
 
+        //X Decay
         if (moveDirection.x > 0)
         {
             if (moveDirection.x <= decayAmount)
-                moveDirection.x = 0;
+                xDecayed = true;
 
             else
                 moveDirection.x -= decayAmount;
@@ -248,17 +253,17 @@ public class PlayerController : MonoBehaviour
 
         else if (moveDirection.x < 0) {
             if (moveDirection.x >= -decayAmount)
-                moveDirection.x = 0;
+                xDecayed = true;
 
             else
                 moveDirection.x += decayAmount;
         }
 
-        
+        //Z Decay
         if (moveDirection.z > 0)
         {
             if (moveDirection.z <= decayAmount)
-                moveDirection.z = 0;
+                zDecayed = true;
 
             else
                 moveDirection.z -= decayAmount;
@@ -267,14 +272,17 @@ public class PlayerController : MonoBehaviour
         else if (moveDirection.z < 0)
         {
             if (moveDirection.z >= -decayAmount)
-                moveDirection.z = 0;
+                zDecayed = true;
 
             else
                 moveDirection.z += decayAmount;
         }
 
-        if (moveDirection.x == 0 && moveDirection.z == 0)
+        if (xDecayed && zDecayed) {
+            moveDirection.x = 0;
+            moveDirection.z = 0;
             sliding = false;
+        }
 
     }
 
@@ -293,8 +301,7 @@ public class PlayerController : MonoBehaviour
         moveDirection = new Vector3(Input.GetAxisRaw("Horizontal"), 0, Input.GetAxisRaw("Vertical"));
         moveDirection = transform.TransformDirection(moveDirection); //makes jump go towards where character is facing
 
-        if (moveDirection.magnitude > 1)
-        {
+        if (moveDirection.magnitude > 1) {
             moveDirection.Normalize();
         }
 
@@ -315,8 +322,7 @@ public class PlayerController : MonoBehaviour
         moveDirection = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
         moveDirection = transform.TransformDirection(moveDirection);
 
-        if (moveDirection.magnitude > 1)
-        {
+        if (moveDirection.magnitude > 1) {
             moveDirection.Normalize();
         }
 
@@ -330,14 +336,14 @@ public class PlayerController : MonoBehaviour
     private IEnumerator forceSlideForTime(float seconds) {
 
         forcedToSlide = true;
-        Debug.Log("Forced to slide");
+        //Debug.Log("Forced to slide");
 
         yield return new WaitForSeconds(seconds);
 
         forcedToSlide = false;
         crouching = Input.GetButton("Crouch");
 
-        Debug.Log("Not forced to slide");
+        //Debug.Log("Not forced to slide");
 
         yield return null;
     }
@@ -352,30 +358,25 @@ public class PlayerController : MonoBehaviour
 
     private void setGroundedMovementStates() {
 
-        if (forcedToSlide && Input.GetButton("Jump"))
-        {
+        if (forcedToSlide && Input.GetButton("Jump")) {
             slideJumpBuffered = true;
         }
 
-        if (!crouching && Input.GetButton("Shift"))
-        {
+        if (!crouching && Input.GetButton("Shift")) {
             isRunning = true;
         }
 
         //set running to false unless last frame char was in air (last in air exception for cases where you want to slide on landing)
-        else if (!sliding && characterController.isGrounded && !lastInAir)
-        {
+        else if (!sliding && characterController.isGrounded && !lastInAir) {
             isRunning = false;
         }
 
-        if (Input.GetButton("Crouch") || forcedToSlide)
-        {
+        if (Input.GetButton("Crouch") || forcedToSlide) {
             //Debug.Log("Crouching");
             crouching = true;
         }
 
-        else
-        {
+        else {
             crouching = false;
             sliding = false;
         }

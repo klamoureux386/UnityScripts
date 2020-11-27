@@ -84,7 +84,7 @@ public class CameraController : MonoBehaviour
             fallDistance += 2;
 
         Debug.Log("Hit ground; Fall distance: " + fallDistance);
-        Debug.Log("Fall distance to bob: " + minFallDistanceToBob);
+        //Debug.Log("Fall distance to bob: " + minFallDistanceToBob);
 
         if (fallDistance > minFallDistanceToBob || cameraBobDown || cameraBobUp) //return if fall distance not < -5 or if camera bobbing
             return;
@@ -99,7 +99,7 @@ public class CameraController : MonoBehaviour
         cameraBobDownTarget = new Vector3(0, 0.0025f, 0) * fallDistance; //magic number to use as a ratio for how far target is moved down
         cameraBobDown = true;
 
-        Debug.Log("Start Bob");
+        //Debug.Log("Start Bob");
     }
 
     
@@ -115,7 +115,7 @@ public class CameraController : MonoBehaviour
         if (distanceToTarget < 0.01) {
             cameraBobDown = false;
             cameraBobUp = true;
-            Debug.Log("Done bobbing down");
+            //Debug.Log("Done bobbing down");
         }
 
         else
