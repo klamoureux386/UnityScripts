@@ -184,6 +184,13 @@ public class PlayerController : MonoBehaviour
         lastMomentum = moveDirection;
         characterController.Move(moveDirection * Time.deltaTime);
 
+        // GROUND CHECKING LOCK CALL
+        if (sliding)
+            groundChecker.lockRaycastLocations();
+        else
+            groundChecker.unlockRaycastLocations();
+        //GROUND CHECKING LOCK CALL END
+
         //Adjust Camera for current action
         //solution?: check if lastSliding == true in airJump, if so raise camera from slide
         if (lastSliding && !sliding && !forcedToSlide) {
@@ -191,6 +198,7 @@ public class PlayerController : MonoBehaviour
         }
 
         updateAnimator();
+
     }
 
     private void startSlide() {
@@ -222,21 +230,27 @@ public class PlayerController : MonoBehaviour
         }
 
         //Downhill angles
-        //don't decay slide if ground angle between -20 & -35
-        if (groundChecker.groundSlopeAngle <= -20 && groundChecker.groundSlopeAngle >= -35)
+        //don't decay slide if ground angle between -5 & -20
+        if (groundChecker.groundSlopeAngle <= -5 && groundChecker.groundSlopeAngle >= -20)
             return;
 
-        //add speed depending on angle <-35
-        if (groundChecker.groundSlopeAngle < -35) {
+        //add speed depending on angle <-20
+        if (groundChecker.groundSlopeAngle < -20) {
             //TO DO
             return;
         }
 
         //Uphill angles
-        if (groundChecker.groundSlopeAngle >= 20 && groundChecker.groundSlopeAngle <= 35)
+        //decay if slope is >= 10 & <= 20
+        if (groundChecker.groundSlopeAngle >= 10 && groundChecker.groundSlopeAngle <= 20)
         {
             forcedToSlide = false;
-            decayAmount *= 5;
+            decayAmount *= 2;
+        }
+
+        if (groundChecker.groundSlopeAngle > 20) {
+            forcedToSlide = false;
+            decayAmount *= 2;
         }
 
         //Vector3 slideDecayVector = new Vector3(decayAmount, 0, decayAmount);
