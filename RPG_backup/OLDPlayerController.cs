@@ -1,17 +1,18 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
 
-public class PlayerController : MonoBehaviour
+public class OLDPlayerController : MonoBehaviour
 {
     //Movement Variables
     private float walkSpeed = 16.0f; //Default 16
     private float runSpeed = 24.0f; //Default 24
     private float jumpSpeed = 18.0f; //Default 18
-    private float airDriftSpeed = 0.5f; //for left-right movement in air, default 0.5
-    private float gravity = 30.0f; //Default 30
+    //private float airDriftSpeed = 0.5f; //for left-right movement in air, default 0.5
+    private float gravity = 3.0f; //Default 30
+    private float groundedGravity = 0.01f;
 
     //Slide Variables
     private float slideMultiplier = 1.4f; //Default 1.25-1.4
@@ -34,12 +35,12 @@ public class PlayerController : MonoBehaviour
     private bool jumpToAir = false; //bool to determine if we jumped to end up in air or walked off of a ledge
 
     //Last Movement Variables
-    private Vector3 lastPosition;
     private Vector3 positionOfLastJump;
-    private Vector3 lastMomentum;
     private bool lastSliding = false;
 
-    //private Vector3 slideMomentum;
+    //Forces on Player
+    private Vector3 moveDirection = Vector3.zero;
+    private Vector3 slopeOnForce = Vector3.zero;
 
     //Components
     public GameObject playerObject;
@@ -47,8 +48,6 @@ public class PlayerController : MonoBehaviour
     CameraController cameraController;
     CharacterController characterController;
     GroundChecker groundChecker;
-
-    Vector3 moveDirection = Vector3.zero;
 
     /*[HideInInspector]
     public bool canMove = true;*/
@@ -64,29 +63,18 @@ public class PlayerController : MonoBehaviour
         // Lock cursor
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-
-        //lastPosition = playerObject.transform.position;
         positionOfLastJump = playerObject.transform.position;
     }
 
     void Update()
     {
 
-        lastPosition = playerObject.transform.position;
         lastSliding = sliding;
-
         setGroundedMovementStates();
+        slopeOnForce = Vector3.zero;
 
+        //if (characterController.isGrounded) Debug.Log("Grounded");
         //Debug.Log(characterController.isGrounded ? "GROUNDED" : "NOT GROUNDED");
-
-        /*
-        if (isRunning)
-            cameraController.setSprintVignette();
-
-        else
-            cameraController.setWalkVignette();
-        */
-
 
         //If we were sliding last frame but no longer are, raise camera
 
@@ -107,28 +95,16 @@ public class PlayerController : MonoBehaviour
 
             airJumpUsed = false;
             lastInAir = false;
+            jumpToAir = false;
             positionOfLastJump = playerObject.transform.position; //set to player location for cases where character walks off cliff
 
-            //can only slide if moving forward and currently running.
-            if (isRunning && Input.GetButton("Crouch") && Input.GetAxis("Vertical") > 0 && !sliding)
-            {
-                //Debug.Log("Begin Sliding");
-                sliding = true;
-                timeSlideStart = Time.time;
-                StartCoroutine(forceSlideForTime(timeForcedToSlide));
-                StartCoroutine(cameraController.dipCameraForSlide(timeForcedToSlide, Time.time));
-                startSlide();
-            }
+            checkIfStartSlide(); //setsMoveDirection, do not touch for duration of slide as slideDecay modifies it
 
-            if (sliding)
-            {
-                //Debug.Log("Sliding");
-                slideDecay();
+            if (sliding) {
+                slideDecay(); 
 
                 //if jump is buffered or key is pressed after slide lock
-                if ( (Input.GetButtonDown("Jump") || slideJumpBuffered) && !forcedToSlide)
-                {
-                    //Debug.Log("Jumping from slide");
+                if ( (Input.GetButtonDown("Jump") || slideJumpBuffered) && !forcedToSlide) {
                     slideJump();
                     slideJumpBuffered = false;
                 }
@@ -141,24 +117,20 @@ public class PlayerController : MonoBehaviour
 
                 //adds slight downward push to ensure isGrounded is detected properly
                 moveDirection = new Vector3(Input.GetAxis("Horizontal"), -0.01f, Input.GetAxis("Vertical"));
-                moveDirection = transform.TransformDirection(moveDirection);
-
-                if (moveDirection.magnitude > 1)
-                {
-                    moveDirection.Normalize();
-                }
+                moveDirection = alignMovementAndNormalize(moveDirection);
 
                 //if running, multiply moveDirection by runSpeed, else multiply by walk speed
                 moveDirection *= (isRunning ? runSpeed : walkSpeed);
                 runningWhenJumped = isRunning;
 
-                if (Input.GetButtonDown("Jump"))
-                {
-                    groundJump();
+                if (Input.GetButtonDown("Jump")) {
+                    groundJump(); //sets jumpToAir and moveDirection Y speed
                 }
 
             }
 
+            if (!jumpToAir)
+                moveDirection += groundChecker.applyForceIfGroundedOnSlope();
         }
 
         else {
@@ -177,12 +149,23 @@ public class PlayerController : MonoBehaviour
             }
 
             //apply gravity if in air
-            moveDirection.y -= gravity * Time.deltaTime;
+            moveDirection.y -= gravity/* * Time.deltaTime*/;
 
         }
 
-        lastMomentum = moveDirection;
-        characterController.Move(moveDirection * Time.deltaTime);
+
+        //https://forum.unity.com/threads/align-to-normal-and-look-down-slope.459499/
+
+        Vector3 gravityVector = Vector3.down;
+        //if not grounded and not 
+        gravityVector *= !characterController.isGrounded && !jumpToAir ? gravity : groundedGravity;
+        //gravityVector *= Time.deltaTime;
+
+        Vector3 finalMovementVector = moveDirection/* + gravityVector*/;
+
+        characterController.Move(finalMovementVector * Time.deltaTime);
+
+        //jumpToAir = false;
 
         // GROUND CHECKING LOCK CALL
         if (sliding)
@@ -201,19 +184,27 @@ public class PlayerController : MonoBehaviour
 
     }
 
+    private void checkIfStartSlide() {
+
+        //can only slide if moving forward and currently running.
+        if (isRunning && Input.GetButton("Crouch") && Input.GetAxisRaw("Vertical") > 0 && !sliding) {
+            //Debug.Log("Begin Sliding");
+            sliding = true;
+            timeSlideStart = Time.time;
+            StartCoroutine(forceSlideForTime(timeForcedToSlide));
+            StartCoroutine(cameraController.dipCameraForSlide(timeForcedToSlide, Time.time));
+            startSlide();
+        }
+
+    }
+
     private void startSlide() {
 
         moveDirection = new Vector3(Input.GetAxisRaw("Horizontal"), -0.01f, Input.GetAxisRaw("Vertical"));
-        moveDirection = transform.TransformDirection(moveDirection);
+        moveDirection = alignMovementAndNormalize(moveDirection);
 
-        if (moveDirection.magnitude > 1)
-        {
-            moveDirection.Normalize();
-        }
         moveDirection.x *= (runSpeed * slideMultiplier);
         moveDirection.z *= (runSpeed * slideMultiplier);
-
-        //slideMomentum = moveDirection; //BEFORE TRANSFORM DIRECTION
     }
 
     //TO DO: [fix] if move direction is less than the decay amount on start, it snaps the player to 0 on that axis, change how decay works
@@ -310,14 +301,10 @@ public class PlayerController : MonoBehaviour
     private void slideJump() {
 
         jumpToAir = true;
-        moveDirection.y = jumpSpeed;
+        //moveDirection.y = jumpSpeed;
         positionOfLastJump = playerObject.transform.position;
         moveDirection = new Vector3(Input.GetAxisRaw("Horizontal"), 0, Input.GetAxisRaw("Vertical"));
-        moveDirection = transform.TransformDirection(moveDirection); //makes jump go towards where character is facing
-
-        if (moveDirection.magnitude > 1) {
-            moveDirection.Normalize();
-        }
+        moveDirection = alignMovementAndNormalize(moveDirection);
 
         moveDirection.x *= (runSpeed * slideMultiplier);
         moveDirection.z *= (runSpeed * slideMultiplier);
@@ -334,17 +321,25 @@ public class PlayerController : MonoBehaviour
         sliding = false;
         positionOfLastJump = playerObject.transform.position;
         moveDirection = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
-        moveDirection = transform.TransformDirection(moveDirection);
-
-        if (moveDirection.magnitude > 1) {
-            moveDirection.Normalize();
-        }
+        moveDirection = alignMovementAndNormalize(moveDirection);
 
         moveDirection *= (runningWhenJumped ? runSpeed : walkSpeed);
         moveDirection.y = jumpSpeed * 0.75f; //slightly lower second jump
 
         //reset bool for next jump
         runningWhenJumped = false;
+    }
+
+    private Vector3 alignMovementAndNormalize(Vector3 moveDirection) {
+
+        Vector3 newDirection = transform.TransformDirection(moveDirection);
+
+        if (newDirection.magnitude > 1) {
+            newDirection.Normalize();
+        }
+
+        return newDirection;
+
     }
 
     private IEnumerator forceSlideForTime(float seconds) {
@@ -368,6 +363,15 @@ public class PlayerController : MonoBehaviour
         anim.SetBool("sliding", sliding);
         anim.SetBool("forcedToSlide", forcedToSlide);
 
+    }
+
+    private void adjustVignette() {
+
+        if (isRunning)
+            cameraController.setSprintVignette();
+
+        else
+            cameraController.setWalkVignette();
     }
 
     private void setGroundedMovementStates() {
