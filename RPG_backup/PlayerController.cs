@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System;
 
 public class PlayerController : MonoBehaviour
 {
@@ -22,7 +23,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float walkSpeed = 16.0f;       //Default 16
     [SerializeField] private float runSpeed = 24.0f;        //Default 24
     [SerializeField] private float jumpSpeed = 18.0f;       //Default 18
-    [SerializeField] private float gravity = 30.0f;          //Default 30
+    [SerializeField] private float gravity = 30.0f;         //Default 30
     [SerializeField] private float groundedGravity = 0.01f; //Default 0.01
 
     //Grounded Movement States
@@ -46,6 +47,7 @@ public class PlayerController : MonoBehaviour
         //Slide Animation Variables
     private float timeForcedToSlide = 0.25f;    //Should be same length as slide animation duration
     private float timeToGetUpFromSlide = 0.10f; //Should be same length as slide get-up animation
+    private Vector3 movementSpeedOnSlide = Vector2.zero;    //X and Z movement
 
     //Last Movement Variables
     private Vector3 positionOfLastJump;
@@ -226,78 +228,110 @@ public class PlayerController : MonoBehaviour
 
         moveDirection.x *= (runSpeed * slideMultiplier);
         moveDirection.z *= (runSpeed * slideMultiplier);
+
+        movementSpeedOnSlide = new Vector3(moveDirection.x, -0.01f, moveDirection.z);
     }
 
     //TO DO: [fix] if move direction is less than the decay amount on start, it snaps the player to 0 on that axis, change how decay works
-    //https://answers.unity.com/questions/1358491/character-controller-slide-down-slope.html
-    //http://thehiddensignal.com/unity-angle-of-sloped-ground-under-player/
+    // that's not actually the problem i don't think ^
+
     private void slideDecay() {
 
-        float decayAmount = 0.1f;
+        float denominator = runSpeed * slideMultiplier; //33.6
+
+        float xRatio = Mathf.Abs(movementSpeedOnSlide.x) / denominator;
+        float zRatio = Mathf.Abs(movementSpeedOnSlide.z) / denominator;
+
+        //33.6 when moving only forward [1.0, 0]
+        //~23.7588 when moving fully forward & right [0.707, 0.707]
+
+        //decay amount multiplier affects slide decay e.g. amount to decay
+        //best for right now seems to be 0.15
+        //make a variable slider to play around with and fine tune later
+        float decayAmountX = xRatio * 0.15f;
+        float decayAmountZ = zRatio * 0.15f;
         bool xDecayed = false;
         bool zDecayed = false;
 
         if (Time.time - timeSlideStart < timeForcedToSlide) { //don't decay until not forced to slide
-            decayAmount = 0;
+            //decayAmount = 0;
+            return;
         }
+
+        //Change this to switch statement available in C#7
+        //https://stackoverflow.com/questions/20147879/switch-case-can-i-use-a-range-instead-of-a-one-number
 
         //Downhill angles
         //don't decay slide if ground angle between -5 & -20
-        if (groundChecker.groundSlopeAngle <= -5 && groundChecker.groundSlopeAngle >= -20)
+        if (groundChecker.groundSlopeAngle <= -5 && groundChecker.groundSlopeAngle >= -10) {
             return;
+        }
+
+        //add slight speed
+        if (groundChecker.groundSlopeAngle < -10 && groundChecker.groundSlopeAngle >= -20) {
+            Debug.Log("adding speed");
+            //TO DO: NEED TO ADJUST SPEED WE'RE ADDING FOR Y AXIS TOO SINCE WE'RE ON A SLOPE DUH :)
+
+            //moveDirection.x += (moveDirection.x > 0) ? decayAmountX : -decayAmountX;
+            //moveDirection.z += (moveDirection.x > 0) ? decayAmountZ : -decayAmountZ;
+            return;
+        }
 
         //add speed depending on angle <-20
         if (groundChecker.groundSlopeAngle < -20) {
-            //TO DO
-            return;
+            //decayAmountX = -0.15f;
+            //decayAmountZ = -0.15f;
         }
 
         //Uphill angles
         //decay if slope is >= 10 & <= 20
         if (groundChecker.groundSlopeAngle >= 10 && groundChecker.groundSlopeAngle <= 20) {
             forcedToSlide = false;
-            decayAmount *= 2;
+            decayAmountX *= 2;
+            decayAmountZ *= 2;
         }
 
         if (groundChecker.groundSlopeAngle > 20) {
             forcedToSlide = false;
-            decayAmount *= 2;
+            decayAmountX *= 3;
+            decayAmountZ *= 3;
         }
+        
 
         //Vector3 slideDecayVector = new Vector3(decayAmount, 0, decayAmount);
 
         //X Decay
         if (moveDirection.x > 0) {
-            if (moveDirection.x <= decayAmount)
+            if (moveDirection.x < decayAmountX)
                 xDecayed = true;
 
             else
-                moveDirection.x -= decayAmount;
+                moveDirection.x -= decayAmountX;
         }
 
         else if (moveDirection.x < 0) {
-            if (moveDirection.x >= -decayAmount)
+            if (moveDirection.x > -decayAmountX)
                 xDecayed = true;
 
             else
-                moveDirection.x += decayAmount;
+                moveDirection.x += decayAmountX;
         }
 
         //Z Decay
         if (moveDirection.z > 0) {
-            if (moveDirection.z <= decayAmount)
+            if (moveDirection.z < decayAmountZ)
                 zDecayed = true;
 
             else
-                moveDirection.z -= decayAmount;
+                moveDirection.z -= decayAmountZ;
         }
 
         else if (moveDirection.z < 0) {
-            if (moveDirection.z >= -decayAmount)
+            if (moveDirection.z > -decayAmountZ)
                 zDecayed = true;
 
             else
-                moveDirection.z += decayAmount;
+                moveDirection.z += decayAmountZ;
         }
 
         if (xDecayed && zDecayed) {
@@ -389,4 +423,9 @@ public class PlayerController : MonoBehaviour
         return newDirection;
 
     }
+
+
+    //Other resources:
+    //https://answers.unity.com/questions/1358491/character-controller-slide-down-slope.html
+    //http://thehiddensignal.com/unity-angle-of-sloped-ground-under-player/
 }
