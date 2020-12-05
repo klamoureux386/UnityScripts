@@ -26,9 +26,11 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float gravity = 30.0f;             //Default 30
     [SerializeField] private float groundedGravity = 0.01f;     //Default 0.01
     [SerializeField] private float forceToLockToSlope = -40.0f; //Default -40
+    [SerializeField] private float maxSlopeToStickTo = 45.0f;   //Default 45 degrees
 
     //Grounded Movement States
-    [Header ("Grounded States")]
+    [Header("Grounded States")]
+    [SerializeField] private bool controllerGrounded = false;
     [SerializeField] private bool crouching = false;
     [SerializeField] private bool sliding = false;
     [SerializeField] private bool isRunning = false;
@@ -78,6 +80,7 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        controllerGrounded = charController.isGrounded;
         performCharacterMovement();  
     }
 
@@ -290,11 +293,12 @@ public class PlayerController : MonoBehaviour
 
         //add slight speed
         if (groundChecker.groundSlopeAngle < -10 /*&& groundChecker.groundSlopeAngle >= -20*/) {
-            //Debug.Log("adding speed");
-            //TO DO: NEED TO ADJUST SPEED WE'RE ADDING FOR Y AXIS TOO SINCE WE'RE ON A SLOPE DUH :)
+            Debug.Log("adding speed");
+            //To do: limit speed downhill to a certain maximum
+            /*[TEMP]*/float speedDiv = 2.0f; //tune speed increase
 
-            //moveDirection.x += (moveDirection.x > 0) ? decayAmountX : -decayAmountX;
-            //moveDirection.z += (moveDirection.x > 0) ? decayAmountZ : -decayAmountZ;
+            moveDirection.x += (moveDirection.x > 0) ? decayAmountX/speedDiv : -decayAmountX/speedDiv;
+            moveDirection.z += (moveDirection.z > 0) ? decayAmountZ/speedDiv : -decayAmountZ/speedDiv;
             return;
         }
 
@@ -356,8 +360,10 @@ public class PlayerController : MonoBehaviour
         }
 
         if (xDecayed && zDecayed) {
-            moveDirection.x = 0;
-            moveDirection.z = 0;
+            //Don't set to zero due to slide speed boost on sloped surfaces, always keep
+            //slightly positive or slightly negative
+            //moveDirection.x = 0;
+            //moveDirection.z = 0;
             sliding = false;
         }
 
