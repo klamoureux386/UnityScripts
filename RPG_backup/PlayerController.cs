@@ -20,11 +20,12 @@ public class PlayerController : MonoBehaviour
 
     //Movement Variables
     [Header ("Movement Variables (read-only)")]
-    [SerializeField] private float walkSpeed = 16.0f;       //Default 16
-    [SerializeField] private float runSpeed = 24.0f;        //Default 24
-    [SerializeField] private float jumpSpeed = 18.0f;       //Default 18
-    [SerializeField] private float gravity = 30.0f;         //Default 30
-    [SerializeField] private float groundedGravity = 0.01f; //Default 0.01
+    [SerializeField] private float walkSpeed = 16.0f;           //Default 16
+    [SerializeField] private float runSpeed = 24.0f;            //Default 24
+    [SerializeField] private float jumpSpeed = 18.0f;           //Default 18
+    [SerializeField] private float gravity = 30.0f;             //Default 30
+    [SerializeField] private float groundedGravity = 0.01f;     //Default 0.01
+    [SerializeField] private float forceToLockToSlope = -40.0f; //Default -40
 
     //Grounded Movement States
     [Header ("Grounded States")]
@@ -33,6 +34,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool isRunning = false;
     [SerializeField] private bool forcedToSlide = false;
     [SerializeField] private bool slideJumpBuffered = false;
+    [SerializeField] private bool lockToSlope = false;
 
     //Aerial Movement States
     [Header ("Aerial States")]
@@ -84,6 +86,14 @@ public class PlayerController : MonoBehaviour
         lastSliding = sliding;
         setGroundedMovementStates();
         storePlayerInputs();
+
+        if (groundChecker.customIsGrounded && moveDirection.y <= 0 && groundChecker.groundSlopeAngle <= -5 && groundChecker.groundSlopeAngle < charController.slopeLimit) {
+            Debug.Log("locking to slope");
+            moveDirection.y = forceToLockToSlope;
+            lockToSlope = true;
+        }
+        else
+            lockToSlope = false;
 
         //move vector calculated differently on ground vs. in-air
         if (charController.isGrounded)
@@ -138,8 +148,12 @@ public class PlayerController : MonoBehaviour
             moveDirection = new Vector3(inputHorizontal, -0.01f, inputVertical);
             moveDirection = alignMovementAndNormalize(moveDirection);
 
+            if (lockToSlope)
+                moveDirection.y = forceToLockToSlope;
+
             //if running, multiply moveDirection by runSpeed, else multiply by walk speed
-            moveDirection *= (isRunning ? runSpeed : walkSpeed);
+            moveDirection.x *= (isRunning ? runSpeed : walkSpeed);
+            moveDirection.z *= (isRunning ? runSpeed : walkSpeed);
 
             if (Input.GetButtonDown("Jump")) {
                 groundJump(); //sets jumpToAir and moveDirection Y speed
@@ -150,6 +164,10 @@ public class PlayerController : MonoBehaviour
     }
 
     private void aerialMovement() {
+
+        //Handles cases where we slide off of a slope so gravity doesnt start at -50
+        if (!lastInAir && moveDirection.y == forceToLockToSlope)
+            moveDirection.y = 0;
 
         lastInAir = true;
 
@@ -226,10 +244,13 @@ public class PlayerController : MonoBehaviour
         moveDirection = new Vector3(inputHorizontal, -0.01f, inputVertical);
         moveDirection = alignMovementAndNormalize(moveDirection);
 
+        if (lockToSlope)
+            moveDirection.y = forceToLockToSlope;
+
         moveDirection.x *= (runSpeed * slideMultiplier);
         moveDirection.z *= (runSpeed * slideMultiplier);
 
-        movementSpeedOnSlide = new Vector3(moveDirection.x, -0.01f, moveDirection.z);
+        movementSpeedOnSlide = new Vector3(moveDirection.x, moveDirection.y, moveDirection.z);
     }
 
     //TO DO: [fix] if move direction is less than the decay amount on start, it snaps the player to 0 on that axis, change how decay works
@@ -268,8 +289,8 @@ public class PlayerController : MonoBehaviour
         }
 
         //add slight speed
-        if (groundChecker.groundSlopeAngle < -10 && groundChecker.groundSlopeAngle >= -20) {
-            Debug.Log("adding speed");
+        if (groundChecker.groundSlopeAngle < -10 /*&& groundChecker.groundSlopeAngle >= -20*/) {
+            //Debug.Log("adding speed");
             //TO DO: NEED TO ADJUST SPEED WE'RE ADDING FOR Y AXIS TOO SINCE WE'RE ON A SLOPE DUH :)
 
             //moveDirection.x += (moveDirection.x > 0) ? decayAmountX : -decayAmountX;
