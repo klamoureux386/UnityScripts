@@ -13,6 +13,7 @@ public class RaycastGunController : MonoBehaviour
     public GameObject playerCamera;
     public VisualEffect muzzleFlash;
     public VisualEffect impactEffect;
+    public Animator revolverAnim;
 
     private VFXEventAttribute impactEventAttribute;
 
@@ -26,6 +27,8 @@ public class RaycastGunController : MonoBehaviour
         if (Input.GetButtonDown("Fire1")) {
 
             shoot();
+            revolverAnim.Play("Shoot");
+            muzzleFlash.Play();
 
         }
 

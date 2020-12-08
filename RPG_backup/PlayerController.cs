@@ -20,11 +20,12 @@ public class PlayerController : MonoBehaviour
 
     //Movement Variables
     [Header ("Movement Variables (read-only)")]
-    [SerializeField] private float walkSpeed = 16.0f;           //Default 16
-    [SerializeField] private float runSpeed = 24.0f;            //Default 24
-    [SerializeField] private float jumpSpeed = 18.0f;           //Default 18
-    [SerializeField] private float gravity = 30.0f;             //Default 30
+    [SerializeField] private float walkSpeed = 16f;           //Default 16
+    [SerializeField] private float runSpeed = 24f;            //Default 24
+    [SerializeField] private float jumpSpeed = 18f;           //Default 18
+    [SerializeField] private float gravity = 30f;             //Default 30
     [SerializeField] private float groundedGravity = 0.01f;     //Default 0.01
+    [SerializeField] private float slideMultiplier = 1.4f;       //Default 1.25-1.4
     [SerializeField] private float forceToLockToSlope = -40.0f; //Default -40
     [SerializeField] private float maxSlopeToStickTo = 45.0f;   //Default 45 degrees
 
@@ -46,7 +47,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool jumpingThisFrame = false;
 
     //Slide Variables
-    private float slideMultiplier = 1.4f;       //Default 1.25-1.4
     private float timeSlideStart = 0;
         //Slide Animation Variables
     private float timeForcedToSlide = 0.25f;    //Should be same length as slide animation duration
@@ -87,10 +87,11 @@ public class PlayerController : MonoBehaviour
     public void performCharacterMovement() {
 
         lastSliding = sliding;
+        jumpingThisFrame = false;
         setGroundedMovementStates();
         storePlayerInputs();
 
-        if (groundChecker.customIsGrounded && moveDirection.y <= 0 && groundChecker.groundSlopeAngle <= -5 && groundChecker.groundSlopeAngle < charController.slopeLimit) {
+        if (groundChecker.customIsGrounded && moveDirection.y <= 0 && groundChecker.groundSlopeAngle <= -3 && groundChecker.groundSlopeAngle < charController.slopeLimit) {
             Debug.Log("locking to slope");
             moveDirection.y = forceToLockToSlope;
             lockToSlope = true;
@@ -109,6 +110,17 @@ public class PlayerController : MonoBehaviour
             groundChecker.lockRaycastLocations();
         else
             groundChecker.unlockRaycastLocations();
+
+        //If jumping this frame, unlock and relock raycast direction so
+        //we can't carry over slide direction by jumping out of slide
+        //the original issue: sliding away from a slope and then 180ing to jump
+        //onto the slope while holding slide the entire time locks direction to
+        //down the slope even when going upward
+        if (jumpingThisFrame && sliding) {
+            groundChecker.unlockRaycastLocations();
+            groundChecker.lockRaycastLocations();
+            movementSpeedOnSlide = new Vector3(moveDirection.x, moveDirection.y, moveDirection.z);
+        }
 
         //Adjust Camera for current action
         //solution?: check if lastSliding == true in airJump, if so raise camera from slide
@@ -194,6 +206,7 @@ public class PlayerController : MonoBehaviour
     private void groundJump() {
         moveDirection.y = jumpSpeed;
         positionOfLastJump = playerObject.transform.position;
+        jumpingThisFrame = true;
 
         if (isRunning)
             runningWhenJumped = true;
@@ -210,6 +223,7 @@ public class PlayerController : MonoBehaviour
 
         moveDirection *= (runningWhenJumped ? runSpeed : walkSpeed);
         moveDirection.y = jumpSpeed * 0.75f; //slightly lower second jump
+        jumpingThisFrame = true;
     }
 
     private void slideJump() {
@@ -223,6 +237,7 @@ public class PlayerController : MonoBehaviour
         moveDirection.y = jumpSpeed;
 
         runningWhenJumped = true;
+        jumpingThisFrame = true;
 
     }
 
@@ -436,6 +451,16 @@ public class PlayerController : MonoBehaviour
         inputHorizontal = Input.GetAxisRaw("Horizontal");
         inputVertical = Input.GetAxisRaw("Vertical");
     }
+
+    //Animatior Function
+
+    /*private void updateAnimator() {
+
+        anim.SetBool("isRunning", isRunning);
+        anim.SetBool("sliding", sliding);
+        anim.SetBool("forcedToSlide", forcedToSlide);
+
+    }*/
 
     //Helper Functions
 

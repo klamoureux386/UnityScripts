@@ -41,9 +41,13 @@ public class CameraController : MonoBehaviour
     private Vector3 cameraSlidingLocation = new Vector3(0, 0.15f, 0.05f); //Default [0, 0.15, 0]
     private Vector3 cameraCrouchingLocation; //Default [0, 0.3, 0]
 
+    //CAMERA PLANES FOR USE IN OTHER SCRIPTS
+    private Plane[] planes;
+
     void Start()
     {
         cameraRestingLocation = playerCamera.transform.localPosition;
+        setPlanes();
         /*cameraSlidingLocation = cameraRestingLocation - new Vector3(0, 0.55f, 0); //Sliding height 0.55 lower than resting height
         cameraCrouchingLocation = cameraRestingLocation - new Vector3(0, 0.4f, 0); //Crouching height 0.4 lower than resting height*/
 
@@ -74,6 +78,8 @@ public class CameraController : MonoBehaviour
         rotationX = Mathf.Clamp(rotationX, -lookXLimit, lookXLimit);
         playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
         transform.rotation *= Quaternion.Euler(0, Input.GetAxis("Mouse X") * lookSpeed, 0);
+
+        setPlanes();
     }
 
     public void checkBobCamera(float lastJumpYPos, bool jumpToAir)
@@ -310,7 +316,7 @@ public class CameraController : MonoBehaviour
 
         playerCamera.transform.localPosition = Vector3.Lerp(startLocation, target, percentageComplete);
 
-        Debug.Log("Lerping. Percentage complete: " + percentageComplete);
+        //Debug.Log("Lerping. Percentage complete: " + percentageComplete);
 
         if (percentageComplete >= 1.0f) {
             playerCamera.transform.localPosition = target;
@@ -318,6 +324,20 @@ public class CameraController : MonoBehaviour
 
         return percentageComplete;
 
+    }
+
+    //Getters & Setters
+
+    public Plane[] getPlanes() {
+        return planes;
+    }
+
+    private void setPlanes() {
+        planes = GeometryUtility.CalculateFrustumPlanes(playerCamera);
+    }
+
+    public Vector3 getCameraPosition() {
+        return playerCamera.transform.position;
     }
 
 }
