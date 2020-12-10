@@ -5,13 +5,7 @@ using UnityEngine.AI;
 
 public class EnemyController : MonoBehaviour {
 
-    //Camera Controller Component
-    //CameraController camController;
-
-
-    public float lookRadius = 100.0f;
-    public GameObject player;
-    public Camera playerCamera;
+    public float lookRadius = 200.0f;
     public NavMeshAgent agent;
 
     //Raycasting Objects
@@ -21,68 +15,54 @@ public class EnemyController : MonoBehaviour {
     //Agent Collider
     private Collider agentCollider;
 
-    //Points per circle range
-    private Vector3 midRangeFront;
-    private Vector3 midRangeRight;
-    private Vector3 midRangeLeft;
-    private Vector3 midRangeBack;
-
-    private Vector3 closeRangeFront;
-    private Vector3 closeRangeRight;
-    private Vector3 closeRangeLeft;
-    private Vector3 closeRangeBack;
-
-    private Vector3 attackRangeFront;
-    private Vector3 attackRangeRight;
-    private Vector3 attackRangeLeft;
-    private Vector3 attackRangeBack;
-
-    //Attack Ranges for Targetting Player
-    private float attackRange = 3.0f;
-    private float closeRange = 9.0f;
-    private float midRange = 18.0f;
-
     //Enemy States
     public bool seenByPlayer = false;
+    public float distanceToPlayer;
+    public Vector3 currentDestination;      //target destination
 
 
     void Start() {
-        //camController = player.GetComponent<CameraController>();
         agent = GetComponent<NavMeshAgent>();
         agentCollider = GetComponent<CapsuleCollider>();
-        //target = player.transform;
-    }
-
-    // Update is called once per frame
-    void FixedUpdate() {
-
-        /*if (seenByPlayer)
-            Debug.Log("seen by player");
-
-        setRangeTargets();*/
-
-        /*float distance = Vector3.Distance(transform.position, player.transform.position);
-
-        if (distance <= midRange + agent.stoppingDistance)
-            faceTarget(player.transform);
-
-        else
-            agent.SetDestination(midRangeFront);*/
-
     }
 
     public void faceTarget(Transform target) {
 
+        float timeMultiplier = 5.0f; //higher slerps faster
+
         Vector3 direction = (target.position - transform.position).normalized;
         Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
-        transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * 5.0f);
+        transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * timeMultiplier);
 
     }
 
+    public void setDistanceToPlayer(float distance) {
+
+        //distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+        distanceToPlayer = distance;
+    }
+
+    //Note: as of right now I'm using the top one so enemies the player is facing that go out
+    // of view for a split-second won't recompute their path. conveniently it's also cheaper
+
+    //Returns true if agent is in direction camera is facing, even if behind a wall
+    public void setIfInDirectionOfView(CameraController camController) {
+
+        Vector3 screenPoint = camController.playerCamera.WorldToViewportPoint(transform.position);
+        if (screenPoint.z > 0 && screenPoint.x > 0 && screenPoint.x < 1 && screenPoint.y > 0 && screenPoint.y < 1) {
+            seenByPlayer = true;
+        }
+        else {
+            seenByPlayer = false;
+        }
+
+    }
+
+    //Returns true if agent is visible to camera and not obscured by an object
     public void setIfSeenByPlayer(CameraController camController) {
 
         if (GeometryUtility.TestPlanesAABB(camController.getPlanes(), agentCollider.bounds))
-            seenByPlayer = ifRaycastHitsPlayer(visionPoint.position);
+            seenByPlayer = ifRaycastHitsPlayer(visionPoint.position, camController);
         else
             seenByPlayer = false;
     }
@@ -104,11 +84,11 @@ public class EnemyController : MonoBehaviour {
     }*/
 
     //Note: see resources
-    private bool ifRaycastHitsPlayer(Vector3 source) {
+    private bool ifRaycastHitsPlayer(Vector3 source, CameraController camController) {
 
         RaycastHit hit;
 
-        Vector3 playerPos = new Vector3(player.transform.position.x, playerCamera.transform.position.y, player.transform.position.z);
+        Vector3 playerPos = camController.transform.position;
 
         Vector3 direction = (playerPos - source).normalized;
         float distance = Vector3.Distance(visionPoint.position, playerPos);
@@ -133,6 +113,7 @@ public class EnemyController : MonoBehaviour {
         Gizmos.color = Color.grey;
         Gizmos.DrawWireSphere(transform.position, lookRadius);
 
+        /*
         //Attack Ranges (relative to player)
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(player.transform.position, attackRange);
@@ -158,7 +139,7 @@ public class EnemyController : MonoBehaviour {
         Gizmos.DrawWireSphere(closeRangeFront, sphereSize);
         Gizmos.DrawWireSphere(closeRangeBack, sphereSize);
         Gizmos.DrawWireSphere(closeRangeRight, sphereSize);
-        Gizmos.DrawWireSphere(closeRangeLeft, sphereSize);
+        Gizmos.DrawWireSphere(closeRangeLeft, sphereSize);*/
 
     }
 
