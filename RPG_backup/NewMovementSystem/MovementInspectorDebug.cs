@@ -26,10 +26,10 @@ public class MovementInspectorDebug : MonoBehaviour {
     [SerializeField] private bool jumpingThisFrame = false;
 
     private void FixedUpdate() {
-        updateStates();   
+        updateDebugStates();   
     }
 
-    private void updateStates() {
+    private void updateDebugStates() {
         
         //Grounded States
         controllerGrounded = GroundedStates.grounded;
