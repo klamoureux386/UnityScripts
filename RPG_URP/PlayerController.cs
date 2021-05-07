@@ -3,52 +3,63 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-[RequireComponent(typeof(CharacterController))]
+//[RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(GroundChecker))]
 public class PlayerController : MonoBehaviour
 {
 
-    CharacterController charController;
+    //CharacterController charController;
+    public CharacterControllerManager ccManager;
     public Animator cinemachineAnimator;
     public Animator playerAnimatior;
     GroundChecker groundChecker;
 
-    //CharacterController Settings:
-    private float ccStandingHeight;
-    private float ccStandingCenterY;
-    private float ccCrouchHeight;
-    private float ccCrouchCenterY;
-    private float ccSlidingHeight;
-    private float ccSlidingCenterY;
-
-    private float walkSpeed = 10.0f;
+    private float crouchSpeed = 5.0f;
+    private float runSpeed = 10.0f;
     private float sprintSpeed = 20.0f;
     private float rotationSpeed = 30.0f;
     private float jumpHeight = 4f;
-    private float gravityValue = -20f;
+    private float gravityValue = -30f; //Default: -20
     Vector2 moveInput = Vector2.zero;
+
+    //State Vars
     public bool lockedOn = false;
-    public bool jumping = false;
     public bool sprinting = false;
+    public bool crouching = false;
+    public bool sliding = false;
+
+    private bool lastInAir = false;
+
+    //Sliding Speeds
+    /*private float maxSlopeSpeed = 40f;
+    private float steepSlopeSpeed = 35f;
+    private float medSteepSlopeSpeed = 30f;
+    private float medSlopeSpeed = 25f;
+    private float slightMedSlopeSpeed = 20f;
+    private float slightSlopeSpeed = 15f;
+    private float verySlightSlopeSpeed = 10f;
+    private float noSlopeSpeed = 0f;*/
 
     //Sliding Vars
-    public bool sliding = false;
+    private float slideMultiplier = 1.2f;
     private float timeSlideStarted;
     private float timeForcedToSlide = 1.0f; //Time forced to slide in seconds
     public bool cancelSlide = false;
 
+    private float sqrMagnitudeToMaintainSpeed = 0.03015259f; //sqrMagnitude of slopeNormal of 10 degree surface without Y
+
     //Rolling Vars
     public bool rolling = false;
 
-    public bool regularGrounded = false;
-
-    [SerializeField] private Vector3 playerVelocity = Vector3.zero;
+    //Velocities
+    [SerializeField] private Vector3 playerVelocity = Vector3.zero; //Primarily used for gravity, may also account for propulsion effects at some point
+    [SerializeField] private Vector3 slideVelocity = Vector3.zero; //X and Z movement taken from input at time of slide, Rotated to match slope normal (will generate a Y value)
 
     private Transform mainCameraTransform;
 
     private void Awake()
     {
-        charController = GetComponent<CharacterController>();
+        //charController = GetComponent<CharacterController>();
         groundChecker = GetComponent<GroundChecker>();
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
@@ -83,23 +94,22 @@ public class PlayerController : MonoBehaviour
     public void OnJumpInput(bool active)
     {
         //must be grounded to jump
-        if (groundChecker.customIsGrounded)
+        if (ccManager.customGrounded)
         {
-            jumping = true;
+            jump();
         }
-        else {
-            jumping = false;
-        }
+
     }
 
+    //Toggle for dev
     public void OnSprintInput(bool active)
     {
         //must be grounded to sprint
-        if (groundChecker.customIsGrounded)
+        if (ccManager.customGrounded && !sprinting)
         {
             sprinting = active;
         }
-        else
+        else if (sprinting)
             sprinting = false;
     }
 
@@ -108,12 +118,21 @@ public class PlayerController : MonoBehaviour
         if (active)
         {
 
+            if (crouching) {
+                crouching = false;
+                StartCoroutine(ccManager.growCharControllerFromCrouching());
+            }
+
+            else if (moveInput == Vector2.zero && !sliding && !crouching) {
+                crouch();
+            }
+
             //if sprinting on ground and not already sliding
-            if (sprinting && !sliding && groundChecker.customIsGrounded)
+            else if (sprinting && !sliding && ccManager.customGrounded)
                 startSlide();
 
             //if not srinting, not already rolling, and grounded: roll
-            else if (!sprinting && !rolling && groundChecker.customIsGrounded) {
+            else if (!sprinting && !rolling && ccManager.customGrounded) {
                 startRoll();
             }
 
@@ -122,12 +141,13 @@ public class PlayerController : MonoBehaviour
         else {
 
             //If not forced to slide
-            if (Time.time - timeSlideStarted > timeForcedToSlide && sliding)
+            if (Time.time - timeSlideStarted > timeForcedToSlide && !cancelSlide)
             {
                 //if time forced to slide is up
                 sliding = false;
+                slideVelocity = Vector2.zero;
 
-                StartCoroutine(growCharController());
+                StartCoroutine(ccManager.growCharControllerFromSliding());
 
             }
             //else, set flag to cancel slide asap
@@ -140,77 +160,118 @@ public class PlayerController : MonoBehaviour
 
     }
 
+    private void crouch() {
+
+        //shrink to slide size for now
+        crouching = true;
+        StartCoroutine(ccManager.shrinkCharControllerCrouching());
+    }
+
+    private void jump() {
+
+        playerVelocity.y += Mathf.Sqrt(jumpHeight * -3.0f * gravityValue);
+
+    }
+
     private void startSlide() {
 
         sliding = true;
         timeSlideStarted = Time.time;
 
+        //store input direction at time of slide (multiplied by sprint speed) in slideVelocity and scale it
+        slideVelocity = (mainCameraTransform.forward * moveInput.x + mainCameraTransform.right * moveInput.y) * sprintSpeed;
+        slideVelocity.y = 0; //ignore y direction of camera
+
+        //slideVelocity = rotateDirectionOntoSlope(slideVelocity, groundChecker.surfaceNormal);
+
+        //Take current moveDirection speed (x and z) and scale it
+        //store that in slideVelocity
+        //(mostly) ignore player moveInput while sliding
+        //maintain, decay, or increase speed of playerVelocity (sliding speed) depending on surface angle
+        //Wants: player to be able to release left stick and let slide dictate movement, allows player to use right stick
+
         //HALF CONTROLLER HEIGHT WITH SLIDE, CAN LERP 
-        StartCoroutine(shrinkCharController());
+        StartCoroutine(ccManager.shrinkCharControllerSliding());
 
-        Debug.Log("Slide started at: " + Time.time);
+        //Debug.Log("Slide started at: " + Time.time);
     }
 
-    #region CharController Grow/Shrink
-    //https://stackoverflow.com/questions/38473399/unity3d-using-time-deltatime-as-wait-time-for-a-coroutine
-    //Take 0.5s to lerp to slide position
-    private IEnumerator shrinkCharController() {
+    //Adjusts slide velocity to move parallel with slope
+    private Vector3 rotateDirectionOntoSlope(Vector3 currentDirection, Vector3 surfaceNormal) {
 
-        //Debug.Log("shrinking char controller");
+        Vector3 slopeMoveDirection = Vector3.ProjectOnPlane(currentDirection, surfaceNormal);
 
-        float maxDuration = 0.5f;
-        float duration = 0;
+        //slopeMoveDirection = slopeMoveDirection.normalized;
 
-        while (duration < maxDuration)
-        {
-            Debug.Log("shrinking... Duration: " + duration);
-            //change char controller from standing height (4) to sliding height (2) over 0.5s
-            charController.height = Mathf.Lerp(ccStandingHeight, ccSlidingHeight, duration / maxDuration);
-            //change char controller center from standing center ([0,1,0]) to sliding center ([0,0,0]) over 0.5s
-            charController.center = new Vector3(0, Mathf.Lerp(ccStandingCenterY, ccSlidingCenterY, duration / maxDuration), 0);
+        /*if (slopeMoveDirection.y > 0)
+            slopeMoveDirection.y = 0;*/
 
-            duration += Time.deltaTime;
+        Debug.Log("surface normal: " + surfaceNormal);
+        Debug.Log("new slope move direction: " + slopeMoveDirection);
 
-            yield return null;
+        return slopeMoveDirection.normalized;
+    }
+
+
+    /* Slide Decay Multipliers
+     * Flat Ground (between -3 & 3 degrees)
+     * 
+     */
+    private void handleSlideDecay() {
+
+        //float slopeAngle = groundChecker.groundSlopeAngle;
+
+        Debug.Log("Matching slide to slope...");
+        slideVelocity = determineIfRotateToSlope(slideVelocity, groundChecker.surfaceNormal);
+
+
+        //TO MAKE THINGS GOOD: BE PICKY ABOUT WHEN TO CALL THIS AND HOW FAST TO ROTATE///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //rotate towards slide normal after sliding for .25s
+        if (Time.time - timeSlideStarted > 0.01f) {
+            //slideVelocity = rotatePlayerTowardsSlopeNormal(slideVelocity, groundChecker.surfaceNormal);
+            rotatePlayerTowardsSlopeNormal(slideVelocity, groundChecker.surfaceNormal);
         }
 
-        charController.height = 2;
-        charController.center = new Vector3(0, 0, 0);
 
-        //yield break;
+        slideVelocity *= 0.998f;
+    
     }
 
-    //Take 0.5s to lerp to raised position
-    //Note: do not stand up under a completely flat surface (rotation [0,0,0]). Anything else will push you out but 0,0,0 will not
-    //To do: use raycast checks to determine if ok to crouch -> ok to stand all the way up
-    private IEnumerator growCharController()
-    {
-        Debug.Log("growing char controller");
+    //https://answers.unity.com/questions/46770/rotate-a-vector3-direction.html
 
-        float maxDuration = 0.5f;
-        float duration = 0;
+    //"Take the cross product of the two vectors and use the result vector as the axis to rotate around. Then perform an axis-angle rotation."
+    private void rotatePlayerTowardsSlopeNormal(Vector3 slideDirection, Vector3 surfaceNormal) {
 
-        while (duration < maxDuration)
+        Debug.Log("ROTATING towards slope normal?");
+
+        Vector3 slopeNormalWithoutY = surfaceNormal;
+        //But what about with y? NOTE: DON'T
+        slopeNormalWithoutY.y = 0;
+
+
+        //TO DO: DETERMINE ROTATION SPEED BASED ON SQR MAGNITUDE OF SURFACE NORMAL///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //SHARPER SLOPES ROTATE FASTER
+
+        float rotSpeed = 1f;
+
+        transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(transform.forward, slopeNormalWithoutY, rotSpeed * Time.deltaTime, 0.0f));
+    }
+
+
+    private Vector3 determineIfRotateToSlope(Vector3 currentDirection, Vector3 surfaceNormal) {
+
+        //to do: come up with some kind of check that will allow us to slide off of sharp edge changes
+        //without stopping our ability to stick to sharp slopes
+        if (groundChecker.backHit && groundChecker.frontHit)
         {
-
-            //Debug.Log("growing... Duration: " + duration);
-
-            //change char controller from sliding height (2) to standing height (4) over 0.5s
-            charController.height = Mathf.Lerp(ccSlidingHeight, ccStandingHeight, duration / maxDuration);
-            //change char controller center from sliding center ([0,0,0]) to standing center ([0,1,0]) over 0.5s
-            charController.center = new Vector3(0, Mathf.Lerp(ccSlidingCenterY, ccStandingCenterY, duration / maxDuration), 0);
-
-            duration += Time.deltaTime;
-
-            yield return null;
+            currentDirection = rotateDirectionOntoSlope(currentDirection, groundChecker.surfaceNormal);
         }
 
-        charController.height = 4;
-        charController.center = new Vector3(0, 1, 0);
+        return currentDirection.normalized;
 
-        yield break;
     }
-    #endregion
+
+
 
     private void startRoll() { 
         
@@ -224,42 +285,85 @@ public class PlayerController : MonoBehaviour
         //if cancel slide flag set and not forced to slide
         if (cancelSlide && Time.time - timeSlideStarted > timeForcedToSlide && sliding) {
             sliding = false;
+            slideVelocity = Vector2.zero;
             cancelSlide = false;
-            StartCoroutine(growCharController());
+            StartCoroutine(ccManager.growCharControllerFromSliding());
             Debug.Log("Slide cancelled by flag");
         }
 
-        if (charController.isGrounded)
-            regularGrounded = true;
-        else
-            regularGrounded = false;
+        float moveSpeed = (sprinting) ? sprintSpeed : runSpeed;
 
-        float moveSpeed = (sprinting) ? sprintSpeed : walkSpeed;
+        if (crouching) { moveSpeed = crouchSpeed; }
 
-        if (charController.isGrounded && playerVelocity.y < 0) {
-            playerVelocity.y = -0.01f;
-        }
+        //NEED TO REDO HOW WE STICK TO GROUND
 
-        Vector3 moveDirection = mainCameraTransform.forward * moveInput.x + mainCameraTransform.right * moveInput.y;
-        charController.Move(moveDirection * moveSpeed * Time.deltaTime);
+        //if downward momentum while grounded, reset Y momentum
+        if (ccManager.customGrounded && playerVelocity.y < 0) {
+            playerVelocity.y = -1.0f;
 
-        //Apply jump force
-        if (jumping && groundChecker.customIsGrounded) {
-
-            playerVelocity.y += Mathf.Sqrt(jumpHeight * -3.0f * gravityValue);
-            jumping = false;
         }
 
         //Apply gravity force to player
-        playerVelocity.y += gravityValue * Time.deltaTime;
-        charController.Move(playerVelocity * Time.deltaTime);
-
-        //if moving, move in direction of camera
-        if (moveInput != Vector2.zero) {
-            float targetAngle = Mathf.Atan2(moveInput.y, moveInput.x) * Mathf.Rad2Deg + mainCameraTransform.eulerAngles.y;
-            Quaternion targetRotation = Quaternion.Euler(0f, targetAngle, 0f);
-            transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+        if (!ccManager.customGrounded)
+        {
+            playerVelocity.y += gravityValue * Time.deltaTime;
         }
+
+        ////////////////
+
+        ccManager.Move(playerVelocity * Time.deltaTime);
+
+        Vector3 inputDirection = new Vector3(moveInput.y, 0, moveInput.x);
+        Vector3 camDirection = mainCameraTransform.rotation * inputDirection;
+        Vector3 targetDirection = new Vector3(camDirection.x, 0, camDirection.z);
+
+        //Turn character to cam forward if not sliding and not standing still
+        if (moveInput != Vector2.zero && !sliding)
+        { //turn the character to face the direction of travel when there is input
+            transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            Quaternion.LookRotation(targetDirection),
+            Time.deltaTime * rotationSpeed
+            );
+        }
+
+        //Attempt 2 - Same thing but moved down
+        Vector3 moveDirection = mainCameraTransform.forward * moveInput.x + mainCameraTransform.right * moveInput.y;
+        //getting rid of any extra y move direction
+        moveDirection.y = 0;
+
+        inputMovementDebug(moveDirection);
+
+        if (groundChecker.surfaceNormal != Vector3.up)
+        {
+            moveDirection = determineIfRotateToSlope(moveDirection, groundChecker.surfaceNormal);
+        }
+
+
+        if (sliding)
+        {
+            handleSlideDecay();
+
+            //Transform slide direction X and Z in direction player is facing on slope (keep Y speed)
+            /*float oldSlideVelocityY = slideVelocity.y;
+            Vector3 adjustedSlideVelocity = transform.TransformDirection(slideVelocity);
+            adjustedSlideVelocity.y = oldSlideVelocityY;*/
+
+            ccManager.Move(slideVelocity * sprintSpeed * Time.deltaTime);
+        }
+        else
+        {
+            ccManager.Move(moveDirection * moveSpeed * Time.deltaTime);
+        }
+
+        slopeMovementDebug(moveDirection, groundChecker.surfaceNormal);
+        slideMovementDebug(slideVelocity);
+
+        targetSlopeRotationMidwayDebug(slideVelocity, groundChecker.surfaceNormal);
+        //targetSlopeRotationCrossDebug(slideVelocity, groundChecker.surfaceNormal);
+        slopeInfluenceDebug(groundChecker.surfaceNormal);
+
+        lastInAir = ccManager.customGrounded;
 
         updateAnimations();
 
@@ -279,21 +383,66 @@ public class PlayerController : MonoBehaviour
         playerAnimatior.SetBool("isSprinting", sprinting);
 
         playerAnimatior.SetBool("isSliding", sliding);
+
+        playerAnimatior.SetBool("isCrouching", crouching);
     
     }
 
-    private void saveCharacterControllerSettings() {
+    private void inputMovementDebug(Vector3 moveDirection) {
 
-        //Standing Settings
-        ccStandingHeight = charController.height;
-        ccStandingCenterY = charController.center.y;
-        //Crouching Settings
-        ccCrouchHeight = charController.height * 0.75f;
-        ccCrouchCenterY = charController.center.y * 0.75f;
-        //Sliding Settings
-        ccSlidingHeight = charController.height * 0.5f;
-        ccSlidingCenterY = charController.center.y * 0.5f;
+        Debug.DrawLine(transform.position, transform.position + moveDirection.normalized, Color.red);
     }
+
+    private void slopeMovementDebug(Vector3 moveDirection, Vector3 slopeNormal)
+    {
+        Vector3 slopeMoveDirection = Vector3.ProjectOnPlane(moveDirection, slopeNormal);
+
+        Debug.DrawLine(transform.position, transform.position + slopeMoveDirection.normalized, Color.green);
+    }
+
+    //Length of cyan line indicates the influence the slope normal has on slide direction, direction of line is the slide normal without Y
+    private void slopeInfluenceDebug(Vector3 slopeNormal) {
+
+
+        Vector3 slopeNormalWithoutY = slopeNormal;
+        slopeNormalWithoutY.y = 0;
+
+        //Vector3 slopeInfluenceDirection = Vector3.ProjectOnPlane(slopeNormal, Vector3.right);
+
+        Debug.DrawLine(transform.position, transform.position + slopeNormalWithoutY, Color.cyan);
+        //Debug.Log("Distance of cyan line: " + Vector3.Distance(transform.position, transform.position + slopeNormalWithoutY));
+        //Debug.Log("Magnitude of cyan line: " + Vector3.Magnitude(transform.position - (transform.position + slopeNormalWithoutY)));
+        //Debug.Log("SqrMagnitude of cyan line: " + Vector3.SqrMagnitude(transform.position - (transform.position + slopeNormalWithoutY)));
+    
+    }
+
+    private void slideMovementDebug(Vector3 slideVelocity) {
+
+        Debug.DrawLine(transform.position, transform.position + slideVelocity.normalized, Color.yellow);
+    }
+
+    /*private void targetSlopeRotationCrossDebug(Vector3 slideDirection, Vector3 slopeNormal) {
+
+        Vector3 slopeNormalWithoutY = slopeNormal;
+        slopeNormalWithoutY.y = 0;
+
+        Vector3 crossVec = Vector3.Cross(slideDirection.normalized, slopeNormalWithoutY.normalized).normalized;
+        crossVec.y = 0;
+
+        Debug.DrawLine(transform.position, transform.position + crossVec, Color.magenta);
+    }*/
+
+    private void targetSlopeRotationMidwayDebug(Vector3 slideDirection, Vector3 slopeNormal) {
+
+        Vector3 slopeNormalWithoutY = slopeNormal;
+        slopeNormalWithoutY.y = 0;
+
+        Vector3 midpointVector = (slideDirection.normalized + slopeNormalWithoutY).normalized;
+
+        Debug.DrawLine(transform.position, transform.position + midpointVector, Color.magenta);
+    
+    }
+
 
     //Unused Functions
 
@@ -331,6 +480,19 @@ public class PlayerController : MonoBehaviour
         }
 
         return true;
+    }*/
+    #endregion
+
+    //Useless Notes & Old Code
+
+    #region Code Graveyard
+    //https://forum.unity.com/threads/moving-character-relative-to-camera.383086/
+    /* ATTEMPT 1 - Character popping up when looking up 
+    //if moving, move in direction of camera
+    if (moveInput != Vector2.zero) {
+        float targetAngle = Mathf.Atan2(moveInput.y, moveInput.x) * Mathf.Rad2Deg + mainCameraTransform.eulerAngles.y;
+        Quaternion targetRotation = Quaternion.Euler(0f, targetAngle, 0f);
+        transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
     }*/
     #endregion
 }
