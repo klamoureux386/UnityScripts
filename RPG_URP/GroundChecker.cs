@@ -9,7 +9,8 @@ public class GroundChecker : MonoBehaviour
     //Based on: http://thehiddensignal.com/unity-angle-of-sloped-ground-under-player/
 
     [Header("Results")]
-    public float groundSlopeAngle = 0f;            // Angle of the slope in degrees
+    public float groundSlopeAngle = 0f;            // Angle of the slope in degrees based on player orientation
+    public float normalRelativeToUp = 0f;          // "True" angle of slope (abs value)
     public bool frontHit = false;
     public bool backHit = false;
     public Vector3 groundSlopeDir = Vector3.zero;  // The calculated slope as a vector
@@ -33,12 +34,12 @@ public class GroundChecker : MonoBehaviour
     public Transform rayOrigin2;                    //Back-most raycast position
     public Transform rayOriginCenter;               //Center of character raycast position
 
-    [Header("Sliding Info")]
+    /*[Header("Sliding Info")]
     public bool locked = false;                     //Determines when to save/unsave origin locations
     public Quaternion rotationWhenLocked;
     public Transform rayLock1;
     public Transform rayLock2;
-    public Transform rayLockCenter;
+    public Transform rayLockCenter;*/
 
     //private float groundCheckRaycastDistance = 0.46f;
 
@@ -58,6 +59,8 @@ public class GroundChecker : MonoBehaviour
     {
 
         Vector3 origin = new Vector3(transform.position.x, transform.position.y - (startingControllerHeight / 2) + startDistanceFromBottom*1.5f, transform.position.z);
+
+        normalRelativeToUp = Mathf.Abs(Vector3.Angle(surfaceNormal, Vector3.up));
 
         //Lazy, fix later
         /*RaycastHit hit;
