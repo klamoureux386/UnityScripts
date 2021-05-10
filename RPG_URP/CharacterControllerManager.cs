@@ -62,18 +62,18 @@ public class CharacterControllerManager : MonoBehaviour
     {
 
         //Debug.Log("shrinking char controller");
-        Debug.Log("Character controller height at start: " + charController.height);
+        //Debug.Log("Character controller height at start: " + charController.height);
 
         float maxDuration = 0.5f;
         float duration = 0;
 
         while (duration < maxDuration)
         {
-            Debug.Log("shrinking... Duration: " + duration);
+            //Debug.Log("shrinking... Duration: " + duration);
             //change char controller from standing height (4) to sliding height (2) over 0.5s
             charController.height = Mathf.Lerp(ccStandingHeight, ccSlidingHeight, duration / maxDuration);
 
-            Debug.Log("Character controller height: " + charController.height);
+            //Debug.Log("Character controller height: " + charController.height);
             //change char controller center from standing center ([0,1,0]) to sliding center ([0,0,0]) over 0.5s
             charController.center = new Vector3(0, Mathf.Lerp(ccStandingCenterY, ccSlidingCenterY, duration / maxDuration), 0);
 
@@ -86,7 +86,7 @@ public class CharacterControllerManager : MonoBehaviour
         charController.height = ccSlidingHeight;
         charController.center = new Vector3(0, ccSlidingCenterY, 0);
 
-        Debug.Log("Character controller height at end: " + charController.height);
+        //Debug.Log("Character controller height at end: " + charController.height);
 
         //yield break;
     }
@@ -95,18 +95,18 @@ public class CharacterControllerManager : MonoBehaviour
     {
 
         //Debug.Log("shrinking char controller");
-        Debug.Log("Character controller height at start: " + charController.height);
+        //Debug.Log("Character controller height at start: " + charController.height);
 
         float maxDuration = 0.5f;
         float duration = 0;
 
         while (duration < maxDuration)
         {
-            Debug.Log("shrinking... Duration: " + duration);
+            //Debug.Log("shrinking... Duration: " + duration);
             //change char controller from standing height (4) to sliding height (2) over 0.5s
             charController.height = Mathf.Lerp(ccStandingHeight, ccCrouchHeight, duration / maxDuration);
 
-            Debug.Log("Character controller height: " + charController.height);
+            //Debug.Log("Character controller height: " + charController.height);
             //change char controller center from standing center ([0,1,0]) to sliding center ([0,0,0]) over 0.5s
             charController.center = new Vector3(0, Mathf.Lerp(ccStandingCenterY, ccCrouchCenterY, duration / maxDuration), 0);
 
@@ -118,7 +118,7 @@ public class CharacterControllerManager : MonoBehaviour
         charController.height = ccCrouchHeight;
         charController.center = new Vector3(0, ccCrouchCenterY, 0);
 
-        Debug.Log("Character controller height at end: " + charController.height);
+        //Debug.Log("Character controller height at end: " + charController.height);
 
         //yield break;
     }
@@ -129,7 +129,7 @@ public class CharacterControllerManager : MonoBehaviour
     //also to do: make sure the final setting of controller height/center doesnt overwrite the other when spamming B
     public IEnumerator growCharControllerFromSliding()
     {
-        Debug.Log("growing char controller");
+        //Debug.Log("growing char controller");
 
         float maxDuration = 0.5f;
         float duration = 0;
@@ -157,7 +157,7 @@ public class CharacterControllerManager : MonoBehaviour
 
     public IEnumerator growCharControllerFromCrouching()
     {
-        Debug.Log("growing char controller");
+        //Debug.Log("growing char controller");
 
         float maxDuration = 0.5f;
         float duration = 0;
