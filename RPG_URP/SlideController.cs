@@ -88,12 +88,7 @@ public class SlideController : MonoBehaviour
         //!Magnitude remains effectively the same through here, slight changes in far decimals
 
         //TODO: Adjust speed (magnitude) based on slope
-        //TODO: this is currently where issues start
-
-        /*if (groundChecker.backHit && groundChecker.frontHit)
-        {
-            adjustSlideSpeed();
-        }*/
+        //TODO: the code was so clean up until adjusting speed D:
 
         if (groundChecker.backHit && groundChecker.frontHit)
         {
@@ -114,6 +109,22 @@ public class SlideController : MonoBehaviour
         //to correct this, we store the magnitude of the vector before the projection, then normalize the resulting projection by the length of the original vector
         slideVelocity = slideVelocity.normalized * magnitudeBeforeProjection;
         
+    }
+
+    private void cleanerRotatePlayerTowardsSlopeNormal() {
+
+        Vector3 slopeNormalWithoutY = groundChecker.surfaceNormal;
+        slopeNormalWithoutY.y = 0;
+        slopeNormalWithoutY.Normalize();
+
+        float slopeSteepness = groundChecker.normalRelativeToUp; //Stores how sharp the angle slope is regardless of our orientation (always positive)
+
+        bool travellingDownhill = true;
+
+        if (groundChecker.groundSlopeAngle > 0)
+            travellingDownhill = false;
+
+
     }
 
     //TODO: Clean this up, also use ratios instead of magic numbers. It's pretty resistant though, a lot of the issues have been in speed adjustments so check there first.
@@ -148,15 +159,6 @@ public class SlideController : MonoBehaviour
 
         Debug.Log("ANGLE BETWEEN CURRENT AND TARGET ROTATION: " + angleLeftToRotate);
 
-
-        //Values to adjust jitter on slight rotations
-        /*!if (angleLeftToRotate < 8f)
-            calculatedRotSpeed = 0.1f;
-        if (angleLeftToRotate < 4f)
-            calculatedRotSpeed = 0.05f;*/
-        /*if (angleLeftToRotate < 2f)
-            calculatedRotSpeed = 0.025f;*/
-
         //dont rotate if slope angle isn't sharper than 12 degrees uphill
         if (groundChecker.normalRelativeToUp <= 12)
             return;
@@ -169,6 +171,7 @@ public class SlideController : MonoBehaviour
 
     //Just using flat scaling because I can't think of another way
     //! I think this is fine for now, next adjustment should be a cleaner rotation speed based on slope steepness
+    //TODO: Turn this into a formula rather than piece-wise
     private void adjustSlideSpeed2() {
 
         float speedCap = 40f;
@@ -177,21 +180,35 @@ public class SlideController : MonoBehaviour
 
         float slopeScalar = 0.001f;
 
-        //Not the best implementation but... it works
+        //!Not the best implementation but... it works
 
+        //Hurry up slide decay when magnitude gets low on flat(ish) ground
+
+        if (slideVelocity.magnitude < 4 && groundChecker.groundSlopeAngle > -5 && groundChecker.groundSlopeAngle < 5)
+            slopeScalar *= 3;
+
+        else if (slideVelocity.magnitude < 8 && groundChecker.groundSlopeAngle > -5 && groundChecker.groundSlopeAngle < 5)
+            slopeScalar *= 2;
+
+        //if moving really slow, just end slide
         if (slideVelocity.magnitude < 1)
         {
             endSlide();
             return;
         }
 
+        //if faster than speed cap, limit magnitude to speedcap
+        if (slideVelocity.magnitude > speedCap)
+            slideVelocity *= speedCap / slideVelocity.magnitude;
+
+
         //!GainSpeed Check
         if (slideVelocity.magnitude < speedCap && slopeAngle < -8)
         {
 
-            if (slopeAngle < -30)
+            /*if (slopeAngle < -30)
                 slideVelocity *= 1 + (slopeScalar*3f);
-            else if (slopeAngle < -25)
+            else */if (slopeAngle < -25)
                 slideVelocity *= 1 + (slopeScalar*2.5f);
             else if (slopeAngle < -20)
                 slideVelocity *= 1 + (slopeScalar*2.0f);
@@ -209,8 +226,8 @@ public class SlideController : MonoBehaviour
             if (slopeAngle < -5)
                 return;
             //else if on slope shallow enough to lose speed
-            else if (slopeAngle < 5)
-                slideVelocity *= 1 - (slopeScalar/2.0f);
+            /*else if (slopeAngle < 5)
+                slideVelocity *= 1 - (slopeScalar/4.0f);*/
             else if (slopeAngle < 8)
                 slideVelocity *= 1 - slopeScalar;
             else if (slopeAngle < 12)

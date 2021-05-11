@@ -15,6 +15,8 @@ public class PlayerController : MonoBehaviour
     public Animator playerAnimatior;
     GroundChecker groundChecker;
 
+    //public GameObject characterMesh; //Disabled in hopes of doing something with IK
+
     public bool disableAnimation = false;
 
     private float crouchSpeed = 5.0f;
@@ -143,23 +145,28 @@ public class PlayerController : MonoBehaviour
 
         else {
 
-            //If not forced to slide
-            if (Time.time - timeSlideStarted > timeForcedToSlide && slideController.cancelSlide && slideController.sliding)
+            if (slideController.sliding)
             {
-                //if time forced to slide is up
-                /*!sliding = false;
-                slideVelocity = Vector2.zero;
 
-                StartCoroutine(ccManager.growCharControllerFromSliding());*/
+                //If not forced to slide and flag active
+                if (Time.time - timeSlideStarted > timeForcedToSlide && slideController.cancelSlide)
+                {
+                    //if time forced to slide is up
+                    /*!sliding = false;
+                    slideVelocity = Vector2.zero;
 
-                slideController.endSlide();
+                    StartCoroutine(ccManager.growCharControllerFromSliding());*/
 
-            }
-            //else, set flag to cancel slide asap
-            else 
-            {
-                slideController.cancelSlide = true;
-                //!cancelSlide = true;
+                    slideController.endSlide();
+
+                }
+                //else, set flag to cancel slide asap
+                else
+                {
+                    slideController.cancelSlide = true;
+                    //!cancelSlide = true;
+                }
+
             }
 
         }
@@ -235,17 +242,6 @@ public class PlayerController : MonoBehaviour
     {
 
         slideController.checkIfCancelSlide();
-
-        //if cancel slide flag set and not forced to slide
-        /*!if (cancelSlide && Time.time - timeSlideStarted > timeForcedToSlide && sliding) {
-            sliding = false;
-            slideController.sliding = false;
-            slideController.slideVelocity = Vector3.zero;
-            slideVelocity = Vector2.zero;
-            cancelSlide = false;
-            StartCoroutine(ccManager.growCharControllerFromSliding());
-            Debug.Log("Slide cancelled by flag");
-        }*/
 
         float moveSpeed = (sprinting) ? sprintSpeed : runSpeed;
 
