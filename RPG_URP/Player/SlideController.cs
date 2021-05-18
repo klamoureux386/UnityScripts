@@ -17,6 +17,8 @@ public class SlideController : MonoBehaviour
     private bool timeOfAdjustmentSet = false;
     private Vector3 slideVelocityAtStartOfLerp = Vector3.zero;
 
+    private float boostAtSlideStart = 1.1f; //10% boost
+
     public bool sliding = false;
 
     public bool cancelSlide = false;
@@ -56,9 +58,9 @@ public class SlideController : MonoBehaviour
         //store input direction at time of slide (multiplied by sprint speed) in slideVelocity and scale it
         slideVelocity = (mainCameraTransform.forward * moveInput.x + mainCameraTransform.right * moveInput.y);
         slideVelocity.y = 0; //ignore y direction of camera, that's determined by the slope/ground we're on
-        slideVelocity = slideVelocity.normalized * sprintSpeed;
+        slideVelocity = slideVelocity.normalized * sprintSpeed * boostAtSlideStart; //!<--added boost
 
-        slideVelocityAtStart = slideVelocity;
+        slideVelocityAtStart = slideVelocity; //add slight boost
 
         StartCoroutine(ccManager.shrinkCharControllerSliding());
 
@@ -118,7 +120,7 @@ public class SlideController : MonoBehaviour
         slopeNormalWithoutY.y = 0;
         slopeNormalWithoutY.Normalize();
 
-        float slopeSteepness = groundChecker.normalRelativeToUp; //Stores how sharp the angle slope is regardless of our orientation (always positive)
+        float absoluteHillSlope = groundChecker.normalRelativeToUp; //Stores how sharp the angle slope is regardless of our orientation (always positive)
 
         bool travellingDownhill = true;
 

@@ -19,7 +19,7 @@ public class DamageTextController : MonoBehaviour
     public void createDamageNumberText(float damage)
     {
 
-        Debug.Log("Creating damage number");
+        //Debug.Log("Creating damage number");
 
         //Spawn damage Text as independent gameObject at transform position
         GameObject damageText = Instantiate(damageTextPrefab, transform.position, Quaternion.identity);
@@ -34,7 +34,7 @@ public class DamageTextController : MonoBehaviour
     public void createDamageNumberText(float damage, Vector3 hitLocation)
     {
 
-        Debug.Log("Creating damage number");
+        //Debug.Log("Creating damage number");
 
         //Spawn damage Text as independent gameObject at transform position
         GameObject damageText = Instantiate(damageTextPrefab, hitLocation, Quaternion.identity);

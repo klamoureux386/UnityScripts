@@ -23,7 +23,7 @@ public class PlayerController : MonoBehaviour
     public bool disableAnimation = false;
 
     //!private float crouchSpeed = 5.0f;
-    private float runSpeed = 10.0f;
+    private float runSpeed = 12.5f;
     private float sprintSpeed = 20.0f;
     private float rotationSpeed = 30.0f;
     private float jumpHeight = 4f;
@@ -87,7 +87,7 @@ public class PlayerController : MonoBehaviour
     {
         
         lockedOn = !lockedOn;
-        Debug.Log("Toggling lock on: " + lockedOn);
+        //Debug.Log("Toggling lock on: " + lockedOn);
         //TODO: MAKE A VAR AND SET LOCK ON TARGET HERE
 
         if (lockedOn)
@@ -257,6 +257,8 @@ public class PlayerController : MonoBehaviour
         if (backstep) {
             Debug.Log("Backstepping");
             playerAnimatior.Play("Backstep");
+            //!fully loaded testing
+            attackController.setFullyLoaded(true);
         }
         else { 
             Debug.Log("Rolling");
@@ -281,7 +283,8 @@ public class PlayerController : MonoBehaviour
             t = Mathf.Sin(t * Mathf.PI * 0.5f);
             t = t * t;
 
-            evadeVelocity = Vector3.Lerp(evadeVelocityAtStart, Vector3.zero, t);
+            //?Adjust scalar value to change target roll velocity at end, vector3.zero feels too limiting on roll
+            evadeVelocity = Vector3.Lerp(evadeVelocityAtStart, evadeVelocityAtStart * .2f/*Vector3.zero*/, t);
 
             elapsedTime += Time.deltaTime;
 
@@ -393,7 +396,7 @@ public class PlayerController : MonoBehaviour
         }
 
 
-        if (evading) 
+        if (evading)
         {
             ccManager.Move(evadeVelocity * Time.deltaTime);
         }
@@ -404,12 +407,19 @@ public class PlayerController : MonoBehaviour
             //!THIS WORKS, DONT TOUCH LOL
             ccManager.Move(slideController.slideVelocity * Time.deltaTime);
         }
-        else
+        //Move at half speed when shooting as FL
+        else if (attackController.shootingFullyLoaded)
         {
+            moveVelocity = moveDirection.normalized * moveSpeed * 1.5f;
+            moveVelocityMagnitude = moveVelocity.magnitude;
+            ccManager.Move(moveVelocity * Time.deltaTime);
+        }
+        //else normal movement
+        else {
             //TODO: un-normalize this at some point so player speed is based on how far they tilt the stick (keep sprint speed locked/normalized)
             moveVelocity = moveDirection.normalized * moveSpeed;
             moveVelocityMagnitude = moveVelocity.magnitude;
-            ccManager.Move(moveDirection.normalized * moveSpeed * Time.deltaTime);
+            ccManager.Move(/*moveDirection.normalized * moveSpeed*/ moveVelocity * Time.deltaTime);
         }
 
         slopeMovementDebug(moveDirection, groundChecker.surfaceNormal);
