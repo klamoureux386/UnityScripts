@@ -11,19 +11,18 @@ public class VFXController : MonoBehaviour
     public Transform primaryGunBarrelPos;
     public Transform secondaryGunBarrelPos;
 
-    public void shootPrimaryGun() {
+    public void shootGun(bool primaryGun) {
 
-        gunSmoke.SetVector3("customPosition", primaryGunBarrelPos.position);
+        if (primaryGun)
+            gunSmoke.SetVector3("customPosition", primaryGunBarrelPos.position);
+        else
+            gunSmoke.SetVector3("customPosition", secondaryGunBarrelPos.position);
+
         gunSmoke.SetVector3("customDirection", Player.transform.forward);
         
         gunSmoke.Play();
         
         //set spawn position of effect to primary gun barrel
-    }
-
-    public void shootSecondaryGun() {
-
-        //set spawn position of effect to secondary gun barrel
     }
 
 }

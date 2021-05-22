@@ -78,7 +78,7 @@ public class AttackController : MonoBehaviour
             remainingAmmo--;
             uiController.updateAmmoCounter(remainingAmmo); //Can decouple this later
 
-            shootNormalBulletAtTarget(instanceOfEnemyClass, shotDamage, primaryGun);
+            shootNormalBulletAtTarget(instanceOfEnemyClass, shotDamage);
 
         }
 
@@ -115,8 +115,10 @@ public class AttackController : MonoBehaviour
             remainingFullyLoadedAmmo--;
             uiController.useOneFullyLoadedAmmo();
             instanceOfEnemyClass.takeDamage(FLShotDamage);
-            vfxController.shootPrimaryGun();
+            vfxController.shootGun(primaryGun);
             audioController.playGunshot();
+
+            primaryGun = !primaryGun;
 
             RaycastHit hit;
 
@@ -136,7 +138,7 @@ public class AttackController : MonoBehaviour
 
             remainingAmmo--;
             uiController.updateAmmoCounter(remainingAmmo);
-            shootNormalBulletAtTarget(instanceOfEnemyClass, shotDamage, true);
+            shootNormalBulletAtTarget(instanceOfEnemyClass, shotDamage);
 
             yield return new WaitForSeconds(0.25f);
 
@@ -147,7 +149,7 @@ public class AttackController : MonoBehaviour
         //yield return null;
     }
 
-    private void shootNormalBulletAtTarget(Enemy target, float damage, bool primaryGun) {
+    private void shootNormalBulletAtTarget(Enemy target, float damage) {
 
         RaycastHit hit;
 
@@ -158,8 +160,10 @@ public class AttackController : MonoBehaviour
         }
 
         target.takeDamage(damage);
-        vfxController.shootPrimaryGun();
+        vfxController.shootGun(primaryGun);
         audioController.playGunshot();
+
+        primaryGun = !primaryGun; //Shoot other gun next time
 
     }
 

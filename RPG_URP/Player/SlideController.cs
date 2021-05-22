@@ -11,11 +11,13 @@ public class SlideController : MonoBehaviour
 
     private float sprintSpeed = 20.0f;
 
-    private float timeForcedToSlide = 1.0f;
+    public float timeForcedToSlide = 1.0f;
 
-    private float timeOfLastAdjustment = 0;
-    private bool timeOfAdjustmentSet = false;
-    private Vector3 slideVelocityAtStartOfLerp = Vector3.zero;
+    private float speedCap = 20f; //Todo: set back to 40 after done testing
+
+    //private float timeOfLastAdjustment = 0;
+    //private bool timeOfAdjustmentSet = false;
+    //private Vector3 slideVelocityAtStartOfLerp = Vector3.zero;
 
     private float boostAtSlideStart = 1.1f; //10% boost
 
@@ -23,7 +25,7 @@ public class SlideController : MonoBehaviour
 
     public bool cancelSlide = false;
 
-    private float timeSlideStarted;
+    public float timeSlideStarted;
 
     private Transform mainCameraTransform;
 
@@ -47,6 +49,8 @@ public class SlideController : MonoBehaviour
     private void FixedUpdate()
     {
         slideVelocityMagnitude = slideVelocity.magnitude;
+
+        debugTransformRotationAndSlideDirection();
     }
 
 
@@ -72,6 +76,14 @@ public class SlideController : MonoBehaviour
         if (!groundChecker.backHit && slideVelocity.y > 0)
             slideVelocity.y = 0;
 
+        //Todo: [DONE] Trying the rotation before aligning movement to slope so we can relate slide direction to transform.rotation.forward
+        //!Works a lot better
+        //Rotate slide movement and player rotation based on slope normal, (surface normal check prevents rotation reset in air)
+        if (Time.time - timeSlideStarted > 0.25f && groundChecker.surfaceNormal != Vector3.zero)
+        {
+            //rotatePlayerTowardsSlopeNormal();
+            cleanerRotatePlayerTowardsSlopeNormal(); //!Testing!
+        }
 
         //Adjust slide movement to prevent bouncing down slopes
         if (groundChecker.backHit && groundChecker.frontHit && groundChecker.surfaceNormal != Vector3.up)
@@ -79,22 +91,14 @@ public class SlideController : MonoBehaviour
             alignMovementToSlopeAngle();
         }
 
-        //!Magnitude is still the same through here, speed unaffected only angle of movement depending on slope
-
-        //Rotate slide movement and player rotation based on slope normal, (surface normal check prevents rotation reset in air)
-        if (Time.time - timeSlideStarted > 0.25f && groundChecker.surfaceNormal != Vector3.zero)
-        {
-            rotatePlayerTowardsSlopeNormal();
-        }
-
         //!Magnitude remains effectively the same through here, slight changes in far decimals
 
         //TODO: Adjust speed (magnitude) based on slope
-        //TODO: the code was so clean up until adjusting speed D:
+        //TODO: Only thing left is to clean up speed adjustment!
 
         if (groundChecker.backHit && groundChecker.frontHit)
         {
-            adjustSlideSpeed2();
+            adjustSlideSpeed();
         }
 
     }
@@ -122,14 +126,53 @@ public class SlideController : MonoBehaviour
 
         float absoluteHillSlope = groundChecker.normalRelativeToUp; //Stores how sharp the angle slope is regardless of our orientation (always positive)
 
-        bool travellingDownhill = true;
+        float angleLeftToRotate = Vector3.Angle(transform.forward, slopeNormalWithoutY); //Angle left until we match direction of slope normal
 
-        if (groundChecker.groundSlopeAngle > 0)
-            travellingDownhill = false;
+        bool travellingUphill = true;
 
+        if (groundChecker.groundSlopeAngle < 0)
+            travellingUphill = false;
+
+        float rotationSpeed;
+
+        float hillSlopeFactor = absoluteHillSlope / 20f; //for slopes steeper than 20 degrees, use hillSlopeFactor to speed up rotation
+
+        float rotationAccelerationLimit = 90.0f; //angle which we reach our least rotation speed (60 degrees away from slope normal e.g. 1/3rd of the way on downhill rotation)
+
+        float angleRotationRate = angleLeftToRotate / rotationAccelerationLimit;
+
+        //adjustable value for determining how hard downhill rotation locks at
+        if (angleRotationRate < 0.5)
+            angleRotationRate = 0.5f;
+
+        if (hillSlopeFactor < 1)
+            hillSlopeFactor = 1;
+
+        //Formula Inputs: angleLeftToRotate, absoluteHillSlope
+        //Formula Outputs: rotation speed
+
+        rotationSpeed = absoluteHillSlope * angleRotationRate; //Rotation slows down after 60 degrees left to rotate
+
+        //?Magic Number here
+        rotationSpeed = rotationSpeed / 20; //!Magic number as divisor, can be altered to speed up/ slow down entire rotation process. DEFAULT: 20
+
+        //dont rotate if uphill slode angle is <= 12 degrees or if moving downhill on shallow slope (2 degrees or less) might help reduce wiggle
+        if ((travellingUphill && absoluteHillSlope <= 12) || (!travellingUphill && absoluteHillSlope <= 2)) { 
+            //do nothing
+        }
+        else
+            transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(transform.forward, slopeNormalWithoutY, rotationSpeed * Time.deltaTime, 0.0f), Vector3.up);
+
+        float slideVelMagnitude = slideVelocity.magnitude;
+
+        //slideVelocity = Vector3.RotateTowards(slideVelocity, slopeNormalWithoutY, rotationSpeed * Time.deltaTime, 0.0f);
+
+        //!slide velocity aligned with transform forward, just need to adjust rotation rate above
+        slideVelocity = transform.forward.normalized * slideVelMagnitude;
 
     }
 
+    #region old rotate slope
     //TODO: Clean this up, also use ratios instead of magic numbers. It's pretty resistant though, a lot of the issues have been in speed adjustments so check there first.
     private void rotatePlayerTowardsSlopeNormal() {
 
@@ -171,13 +214,14 @@ public class SlideController : MonoBehaviour
         slideVelocity =  Vector3.RotateTowards(slideVelocity, slopeNormalWithoutY, calculatedRotSpeed * Time.deltaTime, 0.0f);
 
     }
+    #endregion
 
     //Just using flat scaling because I can't think of another way
     //! I think this is fine for now, next adjustment should be a cleaner rotation speed based on slope steepness
     //TODO: Turn this into a formula rather than piece-wise
-    private void adjustSlideSpeed2() {
+    private void adjustSlideSpeed() {
 
-        float speedCap = 40f;
+        //float speedCap = 40f;
 
         float slopeAngle = groundChecker.groundSlopeAngle;
 
@@ -255,7 +299,7 @@ public class SlideController : MonoBehaviour
             Debug.Log("Slide cancelled by flag");
 
             //!for testing
-            timeOfAdjustmentSet = false;
+            //timeOfAdjustmentSet = false;
         }
     }
 
@@ -266,9 +310,20 @@ public class SlideController : MonoBehaviour
         StartCoroutine(ccManager.growCharControllerFromSliding());
 
         //!for testing
-        timeOfAdjustmentSet = false;
+        //timeOfAdjustmentSet = false;
 
         Debug.Log("Slide ended");
+    }
+
+    private void debugTransformRotationAndSlideDirection() {
+
+        Vector3 slideVelocityWithoutY = new Vector3(slideVelocity.x, 0, slideVelocity.z);
+
+        //TransformForward
+        Debug.DrawLine(transform.position, transform.position + transform.forward.normalized, Color.blue);
+        //MoveDirection
+        Debug.DrawLine(transform.position, transform.position + slideVelocityWithoutY.normalized, Color.green);
+
     }
 
 }

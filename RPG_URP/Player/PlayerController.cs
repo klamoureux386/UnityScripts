@@ -34,14 +34,14 @@ public class PlayerController : MonoBehaviour
     public bool lockedOn = false;
     public bool sprinting = false;
     //!public bool crouching = false;
-    public bool sliding = false;
+    //public bool sliding = false;
 
     private bool lastInAir = false;
 
     //Sliding Vars
     //private float slideMultiplier = 1.2f;
-    private float timeSlideStarted;
-    private float timeForcedToSlide = 1.0f; //Time forced to slide in seconds
+    //private float timeSlideStarted;
+    //private float timeForcedToSlide = 1.0f; //Time forced to slide in seconds
     //public bool cancelSlide = false;
 
     //private float sqrMagnitudeToMaintainSpeed = 0.03015259f; //sqrMagnitude of slopeNormal of 10 degree surface without Y
@@ -49,8 +49,8 @@ public class PlayerController : MonoBehaviour
     //Evade Vars
     public bool evading = false;
     private float backstepSpeed = 8.5f;
-    private float rollSpeed = 17.0f;
-    private float evadeDuration = 1.5f; //Should be equal to evade animation length
+    private float rollDistance = 20.0f;
+    private float evadeDuration = 1.0f; //Should be equal to evade animation length
     //future: backstep should be icicle/flame decoy backstep. Anything else should be a roll?
 
     //Velocities
@@ -167,7 +167,7 @@ public class PlayerController : MonoBehaviour
             #endregion
 
             //if sprinting on ground and not already sliding
-            if (sprinting && !sliding && ccManager.customGrounded)
+            if (sprinting && !slideController.sliding && ccManager.customGrounded)
             {
                 slideController.startSlide(moveInput);
             }
@@ -195,7 +195,7 @@ public class PlayerController : MonoBehaviour
             {
 
                 //If not forced to slide and flag active
-                if (Time.time - timeSlideStarted > timeForcedToSlide && slideController.cancelSlide)
+                if (Time.time - slideController.timeSlideStarted > slideController.timeForcedToSlide && slideController.cancelSlide)
                 {
                     slideController.endSlide();
 
@@ -251,7 +251,7 @@ public class PlayerController : MonoBehaviour
             evadeDirection = mainCameraTransform.forward * moveInput.x + mainCameraTransform.right * moveInput.y;
             evadeDirection.y = 0;
             evadeDirection.Normalize();
-            evadeVelocity = evadeDirection * rollSpeed;
+            evadeVelocity = evadeDirection * rollDistance;
         }
 
         if (backstep) {
@@ -410,7 +410,7 @@ public class PlayerController : MonoBehaviour
         //Move at half speed when shooting as FL
         else if (attackController.shootingFullyLoaded)
         {
-            moveVelocity = moveDirection.normalized * moveSpeed * 1.5f;
+            moveVelocity = moveDirection.normalized * runSpeed * 1.5f; //move faster than run but less than sprint
             moveVelocityMagnitude = moveVelocity.magnitude;
             ccManager.Move(moveVelocity * Time.deltaTime);
         }
@@ -422,12 +422,13 @@ public class PlayerController : MonoBehaviour
             ccManager.Move(/*moveDirection.normalized * moveSpeed*/ moveVelocity * Time.deltaTime);
         }
 
-        slopeMovementDebug(moveDirection, groundChecker.surfaceNormal);
-        slideMovementDebug(slideController.slideVelocity);
+        //!All useful////////////////
+        //!slopeMovementDebug(moveDirection, groundChecker.surfaceNormal);
+        //!slideMovementDebug(slideController.slideVelocity);
 
-        targetSlopeRotationMidwayDebug(slideController.slideVelocity, groundChecker.surfaceNormal);
+        //!targetSlopeRotationMidwayDebug(slideController.slideVelocity, groundChecker.surfaceNormal);
         //targetSlopeRotationCrossDebug(slideVelocity, groundChecker.surfaceNormal);
-        slopeInfluenceDebug(groundChecker.surfaceNormal);
+        //!slopeInfluenceDebug(groundChecker.surfaceNormal);
 
         lastInAir = ccManager.customGrounded;
 
